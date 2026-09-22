@@ -193,6 +193,22 @@ impl Store {
         Ok(())
     }
 
+    /// Create `policy` only if no policy of that name exists yet. Returns whether it was
+    /// newly created.
+    ///
+    /// Used to seed built-in policies (`root`, `unrestricted`) on every startup so an
+    /// existing store upgraded from an older version gains them too. Unlike [`put_policy`],
+    /// this never overwrites: an operator who has customised a built-in name is not silently
+    /// reverted to the shipped default on the next restart.
+    pub fn ensure_policy_exists(&self, policy: &Policy) -> Result<bool> {
+        let inserted = self.conn.execute(
+            "INSERT INTO policies (name, document, created_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(name) DO NOTHING",
+            params![policy.name, policy.to_json()?, now()],
+        )?;
+        Ok(inserted > 0)
+    }
+
     /// Every policy document, for inclusion in a backup bundle.
     pub fn all_policy_documents(&self) -> Result<Vec<String>> {
         let mut statement =

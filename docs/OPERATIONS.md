@@ -50,6 +50,28 @@ privilege drop is real, not aspirational — if `CapEff` is non-zero, something 
 
 ## Tokens and policies
 
+### The fast path: no policy document at all
+
+Two policies exist in every store from the moment `secretbaed init` runs, before you write
+anything: `root` (bound to uid 0, created for the daemon's own bootstrap token) and
+`unrestricted` — read, write, delete and list on every path, attachable to any token you mint:
+
+```bash
+secretbae token create --name first-try --unrestricted --bind-uid myuser
+```
+
+No JSON, no path globs, nothing to get wrong on day one. It still goes through the same
+issuance, hashing and revocation as any other token — there is no way to reach a secret
+without one. What it deliberately cannot do is create or revoke other tokens or change policy
+(`admin` is never included), so a leaked `unrestricted` token cannot mint itself a replacement
+or escalate further than the data it already reached.
+
+Treat it as a starting point, not a production shape: it grants everything to the one token
+you handed it, so a compromise of that token is a compromise of the whole store's data plane.
+Move to a scoped policy — below — once you know what a service actually needs.
+
+### Scoped policies
+
 A policy is a JSON document. Deny always wins, across every policy attached to a token, and
 `require_tags` only ever narrows a grant the path already made — it never creates one.
 

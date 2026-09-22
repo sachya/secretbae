@@ -29,6 +29,7 @@ pub fn run(config: &Config) -> Result<(UnixListener, SharedState)> {
     let backend = keyfile::load(&config.keyfile)?;
 
     let store = open_store(&config.store, account)?;
+    seed_builtin_policies(&store)?;
     let sealed = store.sealed_master_key()?.ok_or(DaemonError::NotInitialised)?;
     let master = seal::unseal_master(&backend, &sealed)?;
 
@@ -150,6 +151,7 @@ pub fn initialise(config: &Config) -> Result<String> {
         }],
         deny: Vec::new(),
     })?;
+    seed_builtin_policies(&store)?;
 
     let issued = sbae_policy::issue()?;
     store.create_token(&sbae_store::NewToken {
@@ -173,5 +175,37 @@ pub fn initialise(config: &Config) -> Result<String> {
     Ok(issued.secret.expose().to_owned())
 }
 
-/// Name of the policy granting everything, created by `init`.
-pub const ROOT_POLICY: &str = "root";
+/// Name of the policy granting everything, created by `init`. Re-exported from the wire
+/// contract so the CLI can refer to the same name without depending on `sbae-policy`.
+pub const ROOT_POLICY: &str = sbae_proto::api::BUILTIN_ROOT_POLICY;
+
+/// A policy attached by name (`--unrestricted`) so a first token can be minted without
+/// writing a policy document. Grants read, write, delete and list on every path, and
+/// deliberately never `admin` -- a token bound to it can read or change any secret but can
+/// never create, revoke or repolicy a token.
+fn unrestricted_policy() -> Result<sbae_policy::Policy> {
+    Ok(sbae_policy::Policy {
+        name: sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY.to_owned(),
+        rules: vec![sbae_policy::Rule {
+            path: sbae_policy::PathPattern::new("**")?,
+            capabilities: [
+                sbae_proto::Capability::Read,
+                sbae_proto::Capability::Write,
+                sbae_proto::Capability::Delete,
+                sbae_proto::Capability::List,
+            ]
+            .into_iter()
+            .collect(),
+            require_tags: Vec::new(),
+        }],
+        deny: Vec::new(),
+    })
+}
+
+/// Seed the policies every store should carry, without ever overwriting one an operator has
+/// customised. Called on every regular startup as well as `init`, so a store upgraded from a
+/// version that predates a built-in policy gains it on its next restart.
+fn seed_builtin_policies(store: &sbae_store::Store) -> Result<()> {
+    store.ensure_policy_exists(&unrestricted_policy()?)?;
+    Ok(())
+}

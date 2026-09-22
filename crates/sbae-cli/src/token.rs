@@ -337,3 +337,61 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
+/// Combine `--policy` and `--unrestricted` into the final policy list for a new token.
+///
+/// A pure function so the precedence is testable without a daemon: `--unrestricted` adds the
+/// built-in policy if it is not already named explicitly, and at least one policy of some
+/// kind is required -- a token created with no policy at all would be a silent no-op grant
+/// that looks successful and does nothing.
+pub fn resolve_policies(explicit: Vec<String>, unrestricted: bool) -> anyhow::Result<Vec<String>> {
+    let mut policies = explicit;
+
+    if unrestricted && !policies.iter().any(|p| p == sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY)
+    {
+        policies.push(sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY.to_owned());
+    }
+
+    if policies.is_empty() {
+        anyhow::bail!(
+            "token create needs at least one grant: pass --policy <name> or --unrestricted"
+        );
+    }
+
+    Ok(policies)
+}
+
+#[cfg(test)]
+mod resolve_policies_tests {
+    use super::*;
+
+    #[test]
+    fn unrestricted_alone_attaches_the_builtin_policy() {
+        assert_eq!(resolve_policies(vec![], true).unwrap(), vec!["unrestricted"]);
+    }
+
+    #[test]
+    fn explicit_policies_alone_are_used_as_given() {
+        assert_eq!(
+            resolve_policies(vec!["billing".to_owned()], false).unwrap(),
+            vec!["billing"]
+        );
+    }
+
+    #[test]
+    fn both_combine_without_duplicating_the_builtin_name() {
+        assert_eq!(
+            resolve_policies(vec!["billing".to_owned()], true).unwrap(),
+            vec!["billing", "unrestricted"]
+        );
+        assert_eq!(
+            resolve_policies(vec!["unrestricted".to_owned()], true).unwrap(),
+            vec!["unrestricted"],
+            "must not duplicate an already-explicit unrestricted"
+        );
+    }
+
+    #[test]
+    fn neither_flag_is_refused_rather_than_minting_a_grantless_token() {
+        assert!(resolve_policies(vec![], false).is_err());
+    }
+}

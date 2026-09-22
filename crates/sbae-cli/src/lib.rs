@@ -247,14 +247,23 @@ fn dispatch_token_command(client: &Client, action: TokenAction, json: bool) -> a
         TokenAction::Create {
             name,
             policies,
+            unrestricted,
             ttl,
             bind_uid,
         } => {
+            let policies = token::resolve_policies(policies, unrestricted)?;
             let ttl_seconds = ttl
                 .as_deref()
                 .map(|s| s.parse::<duration::TtlSeconds>().map(duration::TtlSeconds::get))
                 .transpose()?;
             let bound = bind_uid.as_deref().map(token::parse_bind_uid).transpose()?;
+
+            if unrestricted && bound.is_none() {
+                eprintln!(
+                    "warning: --unrestricted with no --bind-uid can read, write and delete every secret from any local account that obtains this token."
+                );
+            }
+
             let req = TokenCreateRequest {
                 name,
                 policies,

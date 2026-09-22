@@ -18,6 +18,20 @@ pub const BEARER_PREFIX: &str = "Bearer ";
 /// Default socket path. Overridable in the daemon's configuration.
 pub const DEFAULT_SOCKET_PATH: &str = "/run/secretbae/sock";
 
+/// The bootstrap policy `init` binds to a uid-0 token: every capability, including admin.
+pub const BUILTIN_ROOT_POLICY: &str = "root";
+
+/// A policy seeded on every startup, not just `init`, so a store upgraded from an older
+/// version gains it too. Grants read, write, delete and list on every path -- deliberately
+/// excluding `admin`, so a token attached to it can never create or revoke other tokens or
+/// change policy, however much of the secret data it can see.
+///
+/// Exists so a first token can be minted without writing a policy document: `secretbae token
+/// create --unrestricted` attaches this by name. It still goes through the same token
+/// issuance, uid binding and revocation as any other token -- there is no way to read a
+/// secret that does not require holding one.
+pub const BUILTIN_UNRESTRICTED_POLICY: &str = "unrestricted";
+
 pub mod route {
     pub const STATUS: &str = "/v1/status";
     pub const READ: &str = "/v1/secrets/read";

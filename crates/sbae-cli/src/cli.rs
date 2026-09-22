@@ -234,8 +234,18 @@ pub enum TokenAction {
         #[arg(long, required = true, help = "Human-readable token name")]
         name: String,
 
-        #[arg(long = "policy", required = true, action = ArgAction::Append, help = "Policy name to attach")]
+        #[arg(
+            long = "policy",
+            action = ArgAction::Append,
+            help = "Policy name to attach (repeatable). At least one of --policy or --unrestricted is required."
+        )]
         policies: Vec<String>,
+
+        #[arg(
+            long,
+            help = "Attach the built-in 'unrestricted' policy: read, write, delete and list on every secret, but never token or policy administration. For a first token or local experimentation; write a scoped --policy for anything production."
+        )]
+        unrestricted: bool,
 
         #[arg(long, help = "Token lifetime (e.g. 90d, 12h, 3600s)")]
         ttl: Option<String>,

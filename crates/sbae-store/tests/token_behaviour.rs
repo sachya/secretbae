@@ -162,3 +162,22 @@ fn deleting_a_policy_detaches_it_from_every_token() {
         "the token must be left with no grants rather than a dangling reference"
     );
 }
+
+#[test]
+fn ensure_policy_exists_creates_but_never_overwrites() {
+    let store = Store::open_in_memory().unwrap();
+
+    assert!(store.ensure_policy_exists(&policy("unrestricted", "**")).unwrap(), "first call creates it");
+    assert!(
+        !store.ensure_policy_exists(&policy("unrestricted", "prod/**")).unwrap(),
+        "second call must report no change"
+    );
+
+    let attached = store.all_policy_documents().unwrap();
+    assert_eq!(attached.len(), 1);
+    assert!(
+        attached[0].contains("\"**\""),
+        "an operator's own edit to a built-in policy name must survive a reseed: {}",
+        attached[0]
+    );
+}
