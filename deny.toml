@@ -1,0 +1,39 @@
+# cargo-deny configuration for secretbae
+# Documentation: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+]
+
+[advisories]
+version = 2
+# Deny known security advisories/vulnerabilities
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
+
+[licenses]
+version = 2
+# Deny dependencies without a recognized license
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+# Multiple versions of the same crate treated as warnings
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+# Deny crates from unknown package registries or git repositories
+unknown-registries = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

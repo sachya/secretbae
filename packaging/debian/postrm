@@ -1,0 +1,34 @@
+#!/bin/sh
+# Removal is deliberately non-destructive.
+#
+# Deleting the keyfile makes every secret in the store permanently unreadable, and a purge is
+# a routine step in a reinstall. So the store and the key are left in place and the operator
+# is told where they are, rather than being silently destroyed by a package operation.
+set -e
+
+case "$1" in
+remove | purge)
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
+
+if [ "$1" = "purge" ]; then
+    cat <<'NOTICE'
+
+secretbae has been purged, but its data was left in place:
+
+  /etc/secretbae/master.key       the key that opens the store
+  /var/lib/secretbae/store.db     the encrypted secrets
+
+These are NOT removed automatically. Deleting the keyfile makes every secret in the store
+permanently unreadable, with no recovery path. Take a backup first, then remove them by hand
+once you are certain:
+
+  sudo rm -rf /etc/secretbae /var/lib/secretbae
+
+NOTICE
+fi
+
+exit 0

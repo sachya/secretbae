@@ -1,0 +1,15 @@
+/target
+**/*.rs.bk
+*.pdb
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+*.db
+*.db-wal
+*.db-shm
+*.key
+*.token
+
+# Built packages; rebuild with packaging/build-deb.sh
+/dist
+*.deb

@@ -1,0 +1,23 @@
+[package]
+name = "sbae-audit"
+description = "Tamper-evident append-only audit log for secretbae."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+
+[dependencies]
+sbae-core.workspace  = true
+sbae-proto.workspace = true
+blake3.workspace     = true
+rusqlite.workspace   = true
+serde.workspace      = true
+thiserror.workspace  = true
+time.workspace       = true
+
+[dev-dependencies]
+sbae-store.workspace = true
+uuid.workspace       = true
+
+[lints]
+workspace = true

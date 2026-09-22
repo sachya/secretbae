@@ -1,0 +1,19 @@
+[package]
+name = "sbae-store"
+description = "SQLite persistence for secretbae."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+
+[dependencies]
+sbae-core.workspace  = true
+sbae-policy.workspace = true
+sbae-proto.workspace = true
+rusqlite.workspace   = true
+thiserror.workspace  = true
+time.workspace       = true
+uuid.workspace       = true
+
+[lints]
+workspace = true

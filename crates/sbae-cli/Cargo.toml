@@ -1,0 +1,35 @@
+[package]
+name = "sbae-cli"
+description = "Command-line interface for secretbae."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+
+[lib]
+name = "sbae_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "secretbae"
+path = "src/main.rs"
+
+[dependencies]
+sbae-proto.workspace    = true
+anyhow.workspace        = true
+zeroize.workspace       = true
+clap.workspace          = true
+clap_complete.workspace = true
+crossterm.workspace     = true
+data-encoding.workspace = true
+ratatui.workspace       = true
+serde.workspace         = true
+serde_json.workspace    = true
+time.workspace          = true
+toml.workspace          = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e72da402e3b2e7724fc439f03cc09618eb3d4d42 # stable
+        with:
+          toolchain: stable
+          components: rustfmt
+
+      - name: Check code formatting
+        run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy Linter Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e72da402e3b2e7724fc439f03cc09618eb3d4d42 # stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Rust Dependency Cache
+        uses: Swatinem/rust-cache@82a92a6e8fbeee08c636dad575c4e04097f2d843 # v2.7.5
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test Suite (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e72da402e3b2e7724fc439f03cc09618eb3d4d42 # stable
+        with:
+          toolchain: stable
+
+      - name: Rust Dependency Cache
+        uses: Swatinem/rust-cache@82a92a6e8fbeee08c636dad575c4e04097f2d843 # v2.7.5
+
+      - name: Run test suite
+        run: cargo test --all-targets --all-features
+
+  packaging:
+    name: Packaging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # The shipped unit once pointed ExecStart at a path the package does not install, and
+      # once granted too few capabilities to start at all. Neither is visible from the source:
+      # both appear only when the built artefact is actually run.
+      - name: ExecStart names a binary the package installs
+        run: |
+          exec_start=$(grep '^ExecStart=' packaging/systemd/secretbaed.service | cut -d= -f2)
+          if ! grep -q "\"${exec_start#/}\"" crates/sbae-daemon/Cargo.toml; then
+            echo "ExecStart=$exec_start is not an install target in the deb metadata"
+            exit 1
+          fi
+          echo "ExecStart=$exec_start matches the package layout"
+
+      - name: Shipped scripts are LF
+        run: |
+          for f in packaging/install.sh packaging/build-deb.sh packaging/debian/*; do
+            if grep -q -U -P '\r' "$f"; then
+              echo "$f has CRLF line endings; dpkg and systemd both reject them"
+              exit 1
+            fi
+          done
+
+      - name: Shipped scripts parse
+        run: |
+          for f in packaging/install.sh packaging/build-deb.sh packaging/tests/*.sh \
+                   packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm; do
+            sh -n "$f" || exit 1
+          done
+
+      - name: Unit file is valid
+        run: systemd-analyze verify packaging/systemd/secretbaed.service
+
+      # Proves the capability set is both sufficient and minimal: the daemon must start with
+      # it, and must fail without any single entry.
+      - name: Capability set is exactly right
+        run: |
+          cargo build --release -p sbae-daemon -p sbae-cli
+          sudo prlimit --memlock=unlimited -- sh packaging/tests/capability-matrix.sh
+
+
+  cargo-deny:
+    name: Cargo Deny (Licenses, Advisories, Bans)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run cargo-deny check
+        uses: EmbarkStudios/cargo-deny-action@3f4a782664881cfac70bfc711ab03306492edd50 # v2.0.1
+        with:
+          arguments: --all-features
+
+  cargo-audit:
+    name: Security Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run cargo-audit check
+        uses: rustsec/audit-check@2a8219d2eb160eb8095b95b8d1b3f23a6331a1a7 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

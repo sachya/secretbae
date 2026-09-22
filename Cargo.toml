@@ -1,0 +1,71 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sbae-audit",
+    "crates/sbae-cli",
+    "crates/sbae-core",
+    "crates/sbae-daemon",
+    "crates/sbae-policy",
+    "crates/sbae-proto",
+    "crates/sbae-store",
+]
+
+[workspace.package]
+version = "0.1.2"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ajuujain99/secretbae"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Every fallible function returns its crate's single self-describing error enum, so per-function
+# `# Errors` prose would restate the signature rather than add anything.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+
+[workspace.dependencies]
+sbae-core   = { path = "crates/sbae-core" }
+sbae-store  = { path = "crates/sbae-store" }
+sbae-policy = { path = "crates/sbae-policy" }
+sbae-audit  = { path = "crates/sbae-audit" }
+sbae-proto  = { path = "crates/sbae-proto" }
+
+axum               = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+http               = "1"
+tokio              = { version = "1", features = ["rt-multi-thread", "net", "signal", "macros"] }
+toml               = "0.8"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+chacha20poly1305 = "0.10"
+argon2           = "0.5"
+hkdf             = "0.12"
+sha2             = "0.10"
+blake3           = "1"
+subtle           = "2"
+zeroize          = { version = "1", features = ["derive"] }
+getrandom        = "0.2"
+
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror  = "2"
+anyhow     = "1"
+time       = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+uuid       = { version = "1", features = ["v4", "serde"] }
+hex        = "0.4"
+data-encoding = "2"
+tracing    = "0.1"
+libc       = "0.2"
+clap          = { version = "4.5", features = ["derive", "env"] }
+clap_complete = "4.5"
+ratatui       = "0.29"
+crossterm     = "0.28"
+
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+panic         = "abort"
+strip         = "symbols"

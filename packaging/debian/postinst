@@ -1,0 +1,61 @@
+#!/bin/sh
+# Post-installation configuration for secretbae.
+#
+# Deliberately does NOT enable or start the daemon: secretbaed exits until `secretbaed init`
+# has created the keyfile, so auto-starting would only produce a failed unit and a confusing
+# first impression. The operator is told what to run instead.
+set -e
+
+case "$1" in
+configure)
+    # Prefer the shipped declarative definitions; fall back to adduser on systems where
+    # systemd-sysusers is unavailable.
+    if command -v systemd-sysusers >/dev/null 2>&1; then
+        systemd-sysusers /usr/lib/sysusers.d/secretbae.conf >/dev/null 2>&1 || true
+    fi
+
+    if ! getent group secretbae >/dev/null 2>&1; then
+        addgroup --system secretbae >/dev/null 2>&1 || true
+    fi
+    if ! getent passwd secretbae >/dev/null 2>&1; then
+        adduser --system --ingroup secretbae --home /var/lib/secretbae \
+            --no-create-home --shell /usr/sbin/nologin \
+            --gecos "secretbae daemon service" secretbae >/dev/null 2>&1 || true
+    fi
+
+    # 0755 rather than 0700: `secretbae exec` runs as the application's own unprivileged user
+    # and must traverse this directory to read its token and profile. Confidentiality comes
+    # from master.key being 0400 root:root, not from hiding the directory.
+    install -d -m 0755 -o root -g root /etc/secretbae
+    install -d -m 0755 -o root -g root /etc/secretbae/tokens
+    install -d -m 0755 -o root -g root /etc/secretbae/profiles
+
+    # Owner-only: being in the secretbae group gets an application to the socket, never to
+    # the database file.
+    install -d -m 0700 -o secretbae -g secretbae /var/lib/secretbae
+
+    if command -v systemd-tmpfiles >/dev/null 2>&1; then
+        systemd-tmpfiles --create /usr/lib/tmpfiles.d/secretbae.conf >/dev/null 2>&1 || true
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+
+    if [ ! -f /etc/secretbae/master.key ]; then
+        cat <<'NOTICE'
+
+secretbae is installed but not yet initialised.
+
+  1. sudo secretbaed init                    # creates the keyfile, prints the root token ONCE
+  2. sudo systemctl enable --now secretbaed
+
+The root token is shown exactly once and cannot be recovered; only its hash is stored.
+The daemon will not start until step 1 has run.
+
+NOTICE
+    fi
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,80 @@
+[package]
+name = "sbae-daemon"
+description = "The secretbae daemon."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+
+[[bin]]
+name = "secretbaed"
+path = "src/main.rs"
+
+[lib]
+name = "sbae_daemon"
+path = "src/lib.rs"
+
+[dependencies]
+sbae-audit.workspace  = true
+sbae-core.workspace   = true
+sbae-policy.workspace = true
+sbae-proto.workspace  = true
+sbae-store.workspace  = true
+
+axum.workspace               = true
+data-encoding.workspace      = true
+http.workspace               = true
+serde.workspace              = true
+serde_json.workspace         = true
+thiserror.workspace          = true
+time.workspace               = true
+tokio.workspace              = true
+toml.workspace               = true
+tracing.workspace            = true
+uuid.workspace               = true
+tracing-subscriber.workspace = true
+zeroize.workspace            = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+sbae-store.workspace = true
+uuid.workspace       = true
+
+[lints]
+workspace = true
+
+# Builds a single .deb carrying both binaries. `cargo deb -p sbae-daemon --no-build` is run
+# after `cargo build --release`, so the CLI binary from the sibling crate is already present.
+[package.metadata.deb]
+name = "secretbae"
+maintainer = "Sachin Kanungo <ajuujain99@gmail.com>"
+copyright = "2026, Sachin Kanungo"
+section = "admin"
+priority = "optional"
+depends = "$auto, adduser"
+extended-description = """
+A lightweight local secret manager for a single host.
+
+Secrets are stored in an encrypted SQLite database with versioning and key=value tags.
+The daemon holds the master key in locked memory, drops privileges after unsealing, and
+listens only on a Unix socket -- it never opens a network port. Access requires a token,
+which may additionally be bound to a local uid via SO_PEERCRED, so a leaked application
+token is inert for any other account. Every operation is recorded in a tamper-evident,
+keyed hash chain.
+
+Applications receive secrets through `secretbae exec`, which fetches them in one batched
+request and execve()s directly into the target program.
+"""
+maintainer-scripts = "../../packaging/debian"
+assets = [
+    ["target/release/secretbaed", "usr/sbin/secretbaed", "750"],
+    ["target/release/secretbae", "usr/bin/secretbae", "755"],
+    ["../../packaging/systemd/secretbaed.service", "lib/systemd/system/secretbaed.service", "644"],
+    ["../../packaging/systemd/secretbaed.sysusers.conf", "usr/lib/sysusers.d/secretbae.conf", "644"],
+    ["../../packaging/systemd/secretbaed.tmpfiles.conf", "usr/lib/tmpfiles.d/secretbae.conf", "644"],
+    ["../../README.md", "usr/share/doc/secretbae/README.md", "644"],
+    ["../../docs/OPERATIONS.md", "usr/share/doc/secretbae/OPERATIONS.md", "644"],
+    ["../../docs/THREAT_MODEL.md", "usr/share/doc/secretbae/THREAT_MODEL.md", "644"],
+]
