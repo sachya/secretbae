@@ -1,3 +1,8 @@
+---
+title: Operations
+nav_order: 2
+---
+
 # Operations
 
 Running secretbae on a host: install, initialise, grant access, rotate, back up, recover.

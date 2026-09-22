@@ -1,3 +1,8 @@
+---
+title: Threat Model
+nav_order: 3
+---
+
 # Threat Model
 
 What secretbae defends, against whom, and what it does not defend at all.
