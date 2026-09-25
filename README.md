@@ -13,12 +13,16 @@
   <img alt="Built with Rust" src="https://img.shields.io/badge/built%20with-Rust-orange">
 </p>
 
-A lightweight secret manager for a single Linux host. Encrypted storage with versioning and
-tags, token-authenticated access over a Unix socket, and a tamper-evident audit log.
+If you've ever put a database password in a `.env` file and told yourself you'd fix it properly
+later — this is for that. secretbae keeps every secret on your server encrypted, hands them to
+your apps automatically when they start, and keeps a tamper-evident record of who touched what
+and when. No cloud account, no cluster, nothing else to run.
 
-No network listener, no cluster, no external dependencies beyond a keyfile and a SQLite file.
-Debian and Ubuntu get a `.deb`; Fedora, RHEL, Arch, openSUSE and other systemd distributions
-install from a plain shell script — both are tested, not just assumed to work.
+It's one binary you install in a couple of minutes, and it's small enough to actually read the
+whole thing in an afternoon if you want to know exactly what it's doing with your data (you
+should want that, for a tool like this). Debian and Ubuntu get a `.deb`; Fedora, RHEL, Arch,
+openSUSE and other systemd distributions install from a plain shell script — both are genuinely
+tested against real installs, not just assumed to work.
 
 ```
 secretbae put prod/billing/db_url --value 'postgres://…' --tag env=prod
@@ -36,6 +40,7 @@ commands. **Full documentation site:** https://sachya.github.io/secretbae/
 - [5-minute quickstart](#5-minute-quickstart)
 - [A short glossary](#a-short-glossary)
 - [How it works](#how-it-works)
+- [Performance](#performance)
 - [Install](#install)
 - [Tokens and policies, properly](#tokens-and-policies-properly)
 - [Giving secrets to an application](#giving-secrets-to-an-application)
@@ -55,19 +60,34 @@ commands. **Full documentation site:** https://sachya.github.io/secretbae/
 Every server ends up holding things that must not leak: a database password, an API key for a
 payment provider, a TLS private key. The usual places people put these — a `.env` file, an
 environment variable baked into a systemd unit, a value pasted into a deploy script — all share
-the same problem: the value sits in plaintext somewhere on disk, in your shell history, or in a
-backup, with no record of who read it or when it changed.
+the same problem. The value sits in plaintext somewhere on disk, or in your shell history, or in
+a backup nobody thought about, and if it ever leaks, you have no way to know who read it or when
+it changed. Most of us have shipped something this way at least once. It's not a character
+flaw, it's just what happens when doing it properly looks like a lot of extra work.
 
-secretbae is a small daemon (`secretbaed`) and a command-line client (`secretbae`) that solve
-that specific problem for **one server**. Secrets live encrypted in a single file. A daemon
-holds the only key, in memory, and never on disk in usable form. Every change is versioned, so
-you can see history and roll back. Every read and write is authenticated with a token and
-recorded in a log that detects tampering. Applications get their secrets injected as
-environment variables at process start — nothing new for them to learn.
+secretbae is that extra work, done once, so you don't have to think about it again. It's a small
+daemon (`secretbaed`) and a command-line client (`secretbae`) that solve this one problem for
+**one server**. Secrets live encrypted in a single file. Only the daemon holds the key that
+opens it, and only in memory — never on disk in a form anything could just read. Every change is
+versioned, so you can see history and roll back a bad write. Every read and write is checked
+against a token and written to a log that detects tampering. Your applications get their secrets
+as ordinary environment variables when they start — nothing new for them to learn, no SDK to
+import.
 
-It is deliberately not trying to be Vault, AWS Secrets Manager, or a Kubernetes-native anything.
-If you run one server, or a handful that don't need to share secrets with each other, and you
-want something you can read end to end in an afternoon, this is built for exactly that.
+### Where secretbae fits
+
+|  | secretbae | `.env` file / bare env vars | Vault / a cloud KMS |
+| :--- | :--- | :--- | :--- |
+| Time to get running | Minutes — one binary, one command | Already "running" — that's the problem | Hours to days, and usually a whole service or cloud account to manage |
+| Where the secret lives | Encrypted on disk; the key stays in locked memory | Plaintext, wherever you put the file | Encrypted, managed for you |
+| Who can read what | Checked per token, on every single access | Whoever can read the file — no finer than that | Fine-grained, once it's all configured |
+| A record of who touched what | Yes, tamper-evident | No | Yes, once you've set it up |
+| Best fit | One server, or a few that don't need to share a secret store | Nothing, honestly — but it's where everyone starts | Many servers, teams, real compliance needs |
+
+None of this is a knock on Vault or a cloud KMS — they're the right call once you're running a
+fleet or have a compliance box to tick. secretbae is for the much more common situation of "I
+have one server (or a few) and I just want to stop doing the insecure thing," without taking on
+a system built for a scale you don't have.
 
 ## Is this for me?
 
@@ -80,13 +100,15 @@ want something you can read end to end in an afternoon, this is built for exactl
 | A Kubernetes cluster wanting secrets injected via CSI or an operator | ❌ — not built for that |
 | A compliance requirement for HSM-backed key custody | ❌ — see [the keyfile tradeoff](#security-model) |
 
-If the left column describes you, keep reading.
+If the left column sounds like your setup, keep reading — you'll be up and running in about the
+time it takes to read this page.
 
 ## 5-minute quickstart
 
-This uses the built-in `unrestricted` policy so there is no JSON to write for your first token.
-It grants full read/write/delete access to every secret — fine to try things out with, and you
-can lock it down once you see how the pieces fit together (see
+No policy documents, no JSON, nothing to configure first. We'll use the built-in `unrestricted`
+policy for your first token, which can read, write and delete anything — great for getting a
+feel for the tool, not what you'd hand to a production app. Once you see how the pieces fit
+together, locking it down to a scoped policy is one more command (see
 [Tokens and policies, properly](#tokens-and-policies-properly)).
 
 ```bash
@@ -110,12 +132,14 @@ secretbae ls --tag env=prod
 secretbae versions prod/example/password
 ```
 
-That's the whole loop: `put`, `get`, `ls`, `versions`. Everything else in this README — tags,
-policies, `exec` for applications, rotation, backups — builds on those four commands.
+That's genuinely the whole loop: `put`, `get`, `ls`, `versions`. Everything else in this
+README — tags, policies, `exec` for applications, rotation, backups — is just those four
+commands with more structure around them.
 
 ## A short glossary
 
-If terms like these are new, this saves you from guessing:
+None of the rest of this page assumes you already know what these mean, but they'll come up a
+lot, so here they are once instead of re-explained every time:
 
 | Term | Meaning here |
 | :--- | :--- |
@@ -128,6 +152,10 @@ If terms like these are new, this saves you from guessing:
 | **Version** | Every `put` creates a new, immutable version. Nothing is overwritten; `rollback` just changes which version is "current". |
 
 ## How it works
+
+You don't need to understand this section to use secretbae — the quickstart above is the whole
+interface. This is here for when you want to know what's actually happening underneath it, or
+you're deciding whether to trust it with something real.
 
 `secretbaed` starts as root, reads `/etc/secretbae/master.key` (`0400 root:root`), unseals the
 master key into `mlock`ed memory, binds its socket, then **permanently drops to the
@@ -147,6 +175,35 @@ zero daemon calls.
   your app ─────────┘    0660 secretbae:secretbae   │
   (via secretbae exec)                              └── master key: mlock'd, memory only
 ```
+
+## Performance
+
+Measured, not claimed. Run [`sudo bench/run.sh`](bench/run.sh) yourself and get real numbers on
+your own hardware — that's the only comparison that's actually fair.
+
+![Latency chart: secretbae get 25.5ms/61.4ms p50/p99, resolve socket round trip 3.3ms/6.7ms, secretbae exec 26.0ms/54.4ms, secretbae put 27.6ms/63.6ms](docs/assets/benchmark.png)
+
+| Operation | p50 | p90 | p99 |
+| :--- | ---: | ---: | ---: |
+| `secretbae get` (CLI, warm) | 25.5ms | 41.8ms | 61.4ms |
+| Resolve socket round trip | 3.3ms | 5.3ms | 6.7ms |
+| `secretbae exec` (cold start) | 26.0ms | 36.0ms | 54.4ms |
+| `secretbae put` (CLI) | 27.6ms | 45.3ms | 63.6ms |
+
+The interesting number here is the gap between the CLI rows and the resolve socket: most of a
+CLI invocation's latency is Linux spawning a new process, not the daemon doing anything — the
+daemon itself answers in single-digit milliseconds. That's the actual reason the
+[resolve socket](docs/API.md) exists as a second way in: a long-running application that talks
+to it directly over its own connection skips the process-startup cost every single time, instead
+of paying it on every `secretbae` invocation.
+
+**The honest caveats:** these are 300 iterations of each operation, against a real daemon,
+inside a `rust:1-bookworm` Docker container on an 11th Gen Intel Core i5-11300H — not a
+dedicated benchmark rig, and container overhead is real. Treat the absolute numbers as "this
+order of magnitude, on ordinary hardware," not a promise, and treat the *gap* between the CLI
+and socket numbers as the more durable finding, since both were measured the same way on the
+same machine in the same run. [`bench/run.sh`](bench/run.sh) is the script that produced them —
+run it and check us, rather than taking our word for it.
 
 ## Install
 
@@ -182,8 +239,10 @@ or in a container of it.
 
 ## Tokens and policies, properly
 
-The quickstart used `--unrestricted` to skip straight to using the tool. Two policies exist in
-every store from the moment `init` runs:
+The quickstart used `--unrestricted` to skip straight to using the tool, which is fine for a
+first look but not what you want for a real service. Here's the version that actually scopes
+access down to what each app needs. Two policies exist in every store from the moment `init`
+runs:
 
 - **`root`** — everything, including token and policy administration. Bound to uid 0; this is
   what the token `init` printed can do.
@@ -222,7 +281,9 @@ costs one flag.
 
 ## Giving secrets to an application
 
-Write `/etc/secretbae/profiles/billing.toml`:
+This is the part your application actually experiences: it starts up, and its secrets are just
+already there as environment variables. It never talks to secretbae, imports a library, or knows
+this tool exists. Write `/etc/secretbae/profiles/billing.toml`:
 
 ```toml
 token_file = "/etc/secretbae/tokens/billing.token"   # 0440 root:billing
@@ -243,7 +304,10 @@ ExecStart=/usr/bin/secretbae exec --profile billing -- /usr/bin/billing-server
 ```
 
 Secrets never touch disk. The tradeoff: because values are copied into the process once,
-**rotating a secret requires restarting the consuming service.**
+**rotating a secret requires restarting the consuming service.** If your application is
+long-running and needs to notice a rotated secret on its own, it can read the resolve socket
+directly instead — see [API.md](docs/API.md) for the wire format and copy-paste Python and PHP
+clients that need no library at all.
 
 ## `secretbae top`
 
@@ -292,7 +356,8 @@ screen share. Use `secretbae get` when you actually need a value.
 
 ## Security model
 
-Three independent gates, all of which must pass:
+This is the part worth reading slowly before you trust it with anything real. Every single
+request has to clear three independent gates:
 
 1. **Filesystem** — the socket is `0660 secretbae:secretbae`; the caller's user must be in the group.
 2. **Token** — valid, unexpired, unrevoked, and carrying a policy granting the capability. Only
@@ -328,6 +393,9 @@ keeping the keyfile on the same filesystem as the store.
 
 ## What this is not
 
+Being upfront about the edges of this thing matters more to us than making it sound bigger than
+it is:
+
 | Non-goal | Why |
 | :--- | :--- |
 | **Not a network service** | Local Unix socket only. No TCP or UDP is opened, and the systemd unit enforces `AF_UNIX` at the kernel level. |
@@ -336,7 +404,8 @@ keeping the keyfile on the same filesystem as the store.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before sending a change:
+Issues and pull requests are genuinely welcome — including the small stuff, like a confusing
+sentence in these docs. Before sending a change:
 
 ```bash
 cargo fmt --all
@@ -387,6 +456,7 @@ same files linked below.
 | :--- | :--- |
 | [OPERATIONS.md](docs/OPERATIONS.md) | Install, initialise, tokens, exec profiles, systemd wiring, rotation, backup/restore, audit verification, disaster recovery, troubleshooting. |
 | [THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, trust boundaries, attacker profiles, mitigations and residual risk. |
+| [API.md](docs/API.md) | The full HTTP/JSON wire API, and the minimal resolve-socket protocol for reading secrets from your own code. |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release. |
 
 ## Specifications
@@ -413,5 +483,6 @@ your option.
 
 ---
 
-If secretbae is useful to you, a star helps other people looking for the same thing find it.
-Bug reports, questions, and pull requests are all welcome — see [Contributing](#contributing).
+If secretbae saved you from writing another `.env` file, a star helps the next person who's
+about to do the same thing find it instead. Bug reports, questions, and pull requests are all
+welcome — see [Contributing](#contributing).

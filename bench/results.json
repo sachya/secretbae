@@ -1,0 +1,38 @@
+{
+  "secretbae get (CLI, warm)": {
+    "count": 300,
+    "min_ms": 20.392,
+    "mean_ms": 28.547,
+    "p50_ms": 25.499,
+    "p90_ms": 41.849,
+    "p99_ms": 61.383,
+    "max_ms": 130.683
+  },
+  "resolve socket round trip": {
+    "count": 300,
+    "min_ms": 1.585,
+    "mean_ms": 3.627,
+    "p50_ms": 3.349,
+    "p90_ms": 5.269,
+    "p99_ms": 6.687,
+    "max_ms": 9.257
+  },
+  "secretbae exec (cold start)": {
+    "count": 300,
+    "min_ms": 20.165,
+    "mean_ms": 27.795,
+    "p50_ms": 26.007,
+    "p90_ms": 35.964,
+    "p99_ms": 54.381,
+    "max_ms": 67.725
+  },
+  "secretbae put (CLI)": {
+    "count": 300,
+    "min_ms": 20.637,
+    "mean_ms": 30.897,
+    "p50_ms": 27.612,
+    "p90_ms": 45.34,
+    "p99_ms": 63.593,
+    "max_ms": 103.541
+  }
+}

@@ -1,7 +1,7 @@
 ---
 title: Home
 nav_order: 1
-description: "secretbae — a lightweight secret manager for a single Linux host."
+description: "secretbae — stop putting secrets in .env files. Encrypted secret storage for a single Linux host, one binary, no cloud account."
 permalink: /
 ---
 
@@ -13,12 +13,14 @@ permalink: /
 
 **Encrypted secrets. One binary. Zero cloud dependency.**
 
-A lightweight secret manager for a single Linux host. Encrypted storage with versioning and
-tags, token-authenticated access over a Unix socket, and a tamper-evident audit log.
+If you've ever put a database password in a `.env` file and meant to fix it properly later —
+this is for that. secretbae keeps every secret on your server encrypted, hands them to your
+apps automatically when they start, and keeps a tamper-evident record of who touched what and
+when. No cloud account, no cluster, nothing else to run.
 
-No network listener, no cluster, no external dependencies beyond a keyfile and a SQLite file.
 Debian and Ubuntu get a `.deb`; Fedora, RHEL, Arch, openSUSE and other systemd distributions
-install from a plain shell script — both are tested, not just assumed to work.
+install from a plain shell script — both are genuinely tested against real installs, not just
+assumed to work.
 
 ```
 secretbae put prod/billing/db_url --value 'postgres://…' --tag env=prod
@@ -36,6 +38,9 @@ secretbae exec --profile billing -- /usr/bin/billing-server
 - **Evaluating whether to trust it with something real?** [Threat Model](THREAT_MODEL.html)
   states exactly what is defended against, what mitigates each threat, what the residual risk
   is, and which test proves each claim — including what is explicitly *not* defended against.
+- **Writing a client, or reading a secret from your own long-running process?** [API](API.html)
+  documents the full HTTP/JSON surface and a minimal plain-text socket protocol for reading
+  secrets without an HTTP client or a JSON parser.
 - **Want the exact CLI surface?** `secretbae --help`, or any subcommand's `--help`, is the
   source of truth; the README's command table is a summary of it.
 

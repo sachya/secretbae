@@ -1,5 +1,5 @@
 title: secretbae
-description: A lightweight secret manager for a single Linux host.
+description: Stop putting secrets in .env files. Encrypted secret storage for a single Linux host, one binary, no cloud account.
 remote_theme: just-the-docs/just-the-docs
 plugins:
   - jekyll-remote-theme

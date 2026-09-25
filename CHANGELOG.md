@@ -15,6 +15,17 @@ All notable changes to this project are documented here. The format follows
   token, `SO_PEERCRED` and policy checks as the HTTP API, scoped to the same read-only
   capability as `/v1/resolve` — it grants nothing new. See `docs/API.md`, added in this
   release alongside it, for the wire format and example Python and PHP clients.
+- `bench/run.sh` and `bench/benchmark.py`: a real, reproducible latency benchmark for
+  `secretbae get`, `put`, `exec` and a resolve-socket round trip, against a real daemon. The
+  README's Performance section and its chart are generated from this script's own output, not
+  asserted numbers.
+
+### Changed
+
+- README and the documentation site's homepage rewritten for a first-time reader: a plainer
+  opening, a comparison table against `.env` files and Vault/cloud KMS, and a measured
+  Performance section, ahead of the existing technical reference material, which is unchanged
+  in substance.
 
 ### Fixed
 
