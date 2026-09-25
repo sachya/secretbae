@@ -1,7 +1,17 @@
-# secretbae
+<p align="center">
+  <img src="docs/assets/logo.png" alt="secretbae" width="240">
+</p>
 
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#licence)
-[![CI](https://github.com/sachya/secretbae/actions/workflows/ci.yml/badge.svg)](https://github.com/sachya/secretbae/actions/workflows/ci.yml)
+<h1 align="center">secretbae</h1>
+
+<p align="center"><strong>Encrypted secrets. One binary. Zero cloud dependency.</strong></p>
+
+<p align="center">
+  <a href="#licence"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg"></a>
+  <a href="https://github.com/sachya/secretbae/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sachya/secretbae/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://sachya.github.io/secretbae/"><img alt="Docs" src="https://img.shields.io/badge/docs-sachya.github.io%2Fsecretbae-blue"></a>
+  <img alt="Built with Rust" src="https://img.shields.io/badge/built%20with-Rust-orange">
+</p>
 
 A lightweight secret manager for a single Linux host. Encrypted storage with versioning and
 tags, token-authenticated access over a Unix socket, and a tamper-evident audit log.
@@ -398,3 +408,8 @@ same files linked below.
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache License, Version 2.0](LICENSE-APACHE), at
 your option.
+
+---
+
+If secretbae is useful to you, a star helps other people looking for the same thing find it.
+Bug reports, questions, and pull requests are all welcome — see [Contributing](#contributing).

@@ -5,7 +5,13 @@ description: "secretbae — a lightweight secret manager for a single Linux host
 permalink: /
 ---
 
+<p align="center">
+  <img src="assets/logo.png" alt="secretbae" width="200">
+</p>
+
 # secretbae
+
+**Encrypted secrets. One binary. Zero cloud dependency.**
 
 A lightweight secret manager for a single Linux host. Encrypted storage with versioning and
 tags, token-authenticated access over a Unix socket, and a tamper-evident audit log.
