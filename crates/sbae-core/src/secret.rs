@@ -140,7 +140,10 @@ mod tests {
     fn debug_never_reveals_plaintext() {
         let secret = SecretBytes::from("hunter2");
         let rendered = format!("{secret:?}");
-        assert!(!rendered.contains("hunter2"), "Debug leaked the secret: {rendered}");
+        assert!(
+            !rendered.contains("hunter2"),
+            "Debug leaked the secret: {rendered}"
+        );
         assert!(rendered.contains('7'), "expected the length to be reported");
 
         let key = Key32::from_bytes([0xAB; 32]);

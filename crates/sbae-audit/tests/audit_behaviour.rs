@@ -10,10 +10,9 @@ use sbae_audit::{
     PeerPid, PeerUid, Seq, Timestamp, VerificationResult,
 };
 use sbae_core::MasterKey;
-use sbae_store::Store;
 use sbae_proto::{SecretPath, Version};
+use sbae_store::Store;
 use uuid::Uuid;
-
 
 struct Fixture {
     store: Store,
@@ -22,7 +21,10 @@ struct Fixture {
 
 impl Fixture {
     fn in_memory() -> Self {
-        Self { store: Store::open_in_memory().unwrap(), master: MasterKey::generate().unwrap() }
+        Self {
+            store: Store::open_in_memory().unwrap(),
+            master: MasterKey::generate().unwrap(),
+        }
     }
 
     fn audit_key(&self) -> sbae_core::Key32 {
@@ -101,7 +103,10 @@ fn a_chain_of_several_entries_verifies_clean() {
     assert_eq!(verification.broken_seq(), None);
     assert!(matches!(
         verification,
-        VerificationResult::Valid { entries_verified: 5, tail_hash: Some(_) }
+        VerificationResult::Valid {
+            entries_verified: 5,
+            tail_hash: Some(_)
+        }
     ));
 }
 
@@ -292,7 +297,8 @@ fn a_plaintext_canary_never_appears_in_any_stored_column() {
                 rusqlite::types::Value::Blob(b) => {
                     let canary_bytes = canary.as_bytes();
                     assert!(
-                        !b.windows(canary_bytes.len()).any(|window| window == canary_bytes),
+                        !b.windows(canary_bytes.len())
+                            .any(|window| window == canary_bytes),
                         "canary leaked in blob column {col_idx}"
                     );
                 }
@@ -450,11 +456,16 @@ fn deleting_entries_from_the_end_is_detected_by_the_anchor() {
     }
     assert!(verify(&fixture, &key).unwrap().is_valid());
 
-    fixture.execute("DELETE FROM audit WHERE seq > 3", []).unwrap();
+    fixture
+        .execute("DELETE FROM audit WHERE seq > 3", [])
+        .unwrap();
 
     assert_eq!(
         verify(&fixture, &key).unwrap(),
-        VerificationResult::Truncated { expected_entries: 5, found_entries: 3 }
+        VerificationResult::Truncated {
+            expected_entries: 5,
+            found_entries: 3
+        }
     );
 }
 
@@ -471,8 +482,13 @@ fn removing_the_anchor_entirely_is_also_detected() {
     )
     .unwrap();
 
-    fixture.execute("DELETE FROM meta WHERE key = 'audit_anchor'", []).unwrap();
-    assert_eq!(verify(&fixture, &key).unwrap(), VerificationResult::AnchorInvalid);
+    fixture
+        .execute("DELETE FROM meta WHERE key = 'audit_anchor'", [])
+        .unwrap();
+    assert_eq!(
+        verify(&fixture, &key).unwrap(),
+        VerificationResult::AnchorInvalid
+    );
 }
 
 /// An attacker without the audit key cannot mint a replacement anchor that agrees with the
@@ -491,8 +507,14 @@ fn an_anchor_rewritten_without_the_audit_key_is_rejected() {
 
     let forged = vec![0u8; 8 + 32 + 32];
     fixture
-        .execute("UPDATE meta SET value = ?1 WHERE key = 'audit_anchor'", [forged])
+        .execute(
+            "UPDATE meta SET value = ?1 WHERE key = 'audit_anchor'",
+            [forged],
+        )
         .unwrap();
 
-    assert!(verify(&fixture, &key).is_err(), "a forged anchor must not verify");
+    assert!(
+        verify(&fixture, &key).is_err(),
+        "a forged anchor must not verify"
+    );
 }

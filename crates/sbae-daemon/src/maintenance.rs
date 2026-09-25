@@ -37,7 +37,10 @@ pub async fn rekey(
 
     let (rewrapped, entries, generation) = {
         let keys = state.keys();
-        let generation = keys.generation.checked_add(1).ok_or_else(ApiError::internal)?;
+        let generation = keys
+            .generation
+            .checked_add(1)
+            .ok_or_else(ApiError::internal)?;
         let sealed = seal::seal_master(state.seal(), &successor, generation)?;
 
         let mut store = state.store();
@@ -45,20 +48,32 @@ pub async fn rekey(
         // The chain is re-keyed first because that step refuses to run on a chain that does
         // not verify. Doing it here means tampering aborts the whole rotation, rather than
         // being silently re-MAC'd into a valid-looking chain afterwards.
-        let entries =
-            sbae_audit::rekey_chain(store.connection_mut(), &keys.audit_key, &successor_audit_key)
-                .map_err(|_| ApiError::internal())?
-                .entries_rekeyed;
+        let entries = sbae_audit::rekey_chain(
+            store.connection_mut(),
+            &keys.audit_key,
+            &successor_audit_key,
+        )
+        .map_err(|_| ApiError::internal())?
+        .entries_rekeyed;
 
         let report = store.rekey_with(&sealed, |binding, version| {
-            version.rewrap(&keys.master, &successor, generation, binding).map_err(StoreError::from)
+            version
+                .rewrap(&keys.master, &successor, generation, binding)
+                .map_err(StoreError::from)
         })?;
 
         (report.versions_rewrapped, entries, generation)
     };
 
     state.adopt_rotated_key(successor, generation)?;
-    record(&state, &caller, Action::Rekey, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::Rekey,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
 
     Ok(Json(api::RekeyResponse {
         versions_rewrapped: rewrapped as u64,
@@ -134,11 +149,26 @@ pub async fn backup(
         })
         .map_err(|_| ApiError::internal())?;
 
-        (backup::seal_bundle(request.passphrase.as_bytes(), &payload)?, secret_count, version_count)
+        (
+            backup::seal_bundle(request.passphrase.as_bytes(), &payload)?,
+            secret_count,
+            version_count,
+        )
     };
 
-    record(&state, &caller, Action::Backup, AuditResult::Success, None, None)?;
-    Ok(Json(api::BackupResponse { bundle: BASE64.encode(&bundle), secrets, versions }))
+    record(
+        &state,
+        &caller,
+        Action::Backup,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
+    Ok(Json(api::BackupResponse {
+        bundle: BASE64.encode(&bundle),
+        secrets,
+        versions,
+    }))
 }
 
 /// Import a bundle into an empty store.
@@ -225,11 +255,26 @@ pub async fn restore(
             store.put_policy(&policy)?;
         }
 
-        (bundle.secrets.len() as u64, version_count, bundle.policies.len() as u64)
+        (
+            bundle.secrets.len() as u64,
+            version_count,
+            bundle.policies.len() as u64,
+        )
     };
 
-    record(&state, &caller, Action::Restore, AuditResult::Success, None, None)?;
-    Ok(Json(api::RestoreResponse { secrets, versions, policies }))
+    record(
+        &state,
+        &caller,
+        Action::Restore,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
+    Ok(Json(api::RestoreResponse {
+        secrets,
+        versions,
+        policies,
+    }))
 }
 
 /// A timestamp that fails to parse falls back to now rather than aborting the restore: losing

@@ -18,7 +18,9 @@ impl Version {
     pub const FIRST: Self = Self(NonZeroU32::MIN);
 
     pub fn new(value: u32) -> Result<Self, ProtoError> {
-        NonZeroU32::new(value).map(Self).ok_or(ProtoError::InvalidVersion)
+        NonZeroU32::new(value)
+            .map(Self)
+            .ok_or(ProtoError::InvalidVersion)
     }
 
     #[must_use]
@@ -138,7 +140,11 @@ mod tests {
 
     #[test]
     fn state_parses_from_its_stored_form() {
-        for state in [VersionState::Active, VersionState::Deleted, VersionState::Destroyed] {
+        for state in [
+            VersionState::Active,
+            VersionState::Deleted,
+            VersionState::Destroyed,
+        ] {
             assert_eq!(VersionState::parse(state.as_str()).unwrap(), state);
         }
         assert!(VersionState::parse("purged").is_err());

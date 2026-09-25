@@ -13,7 +13,10 @@ pub fn print_status(resp: &StatusResponse, json: bool) -> anyhow::Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(resp)?);
     } else {
-        println!("Version:        {} (schema {})", resp.version, resp.schema_version);
+        println!(
+            "Version:        {} (schema {})",
+            resp.version, resp.schema_version
+        );
         println!(
             "Status:         {} ({})",
             if resp.sealed { "sealed" } else { "unsealed" },
@@ -66,8 +69,15 @@ pub fn print_list(resp: &ListResponse, json: bool) -> anyhow::Result<()> {
                 .current_version
                 .map_or_else(|| "-".to_owned(), |v| format!("v{v}"));
             let tags: Vec<String> = secret.tags.iter().map(ToString::to_string).collect();
-            let tags_str = if tags.is_empty() { "-".to_owned() } else { tags.join(",") };
-            println!("{:<32} {:<10} {:<24} {}", secret.path, ver, secret.updated_at, tags_str);
+            let tags_str = if tags.is_empty() {
+                "-".to_owned()
+            } else {
+                tags.join(",")
+            };
+            println!(
+                "{:<32} {:<10} {:<24} {}",
+                secret.path, ver, secret.updated_at, tags_str
+            );
         }
     }
     Ok(())
@@ -79,7 +89,10 @@ pub fn print_versions(resp: &VersionsResponse, json: bool) -> anyhow::Result<()>
     } else if resp.versions.is_empty() {
         println!("No versions found for {}.", resp.path);
     } else {
-        println!("{:<10} {:<12} {:<24} {:<16} COMMENT", "VERSION", "STATE", "CREATED", "BY");
+        println!(
+            "{:<10} {:<12} {:<24} {:<16} COMMENT",
+            "VERSION", "STATE", "CREATED", "BY"
+        );
         for v in &resp.versions {
             println!(
                 "{:<10} {:<12} {:<24} {:<16} {}",
@@ -101,7 +114,10 @@ pub fn print_token_create(resp: &TokenCreateResponse, json: bool) -> anyhow::Res
         println!("Token created successfully.");
         println!("Token:      {}", resp.token);
         println!("Prefix:     {}", resp.prefix);
-        println!("Expires:    {}", resp.expires_at.as_deref().unwrap_or("never"));
+        println!(
+            "Expires:    {}",
+            resp.expires_at.as_deref().unwrap_or("never")
+        );
         println!();
         println!("Record this token now. It will not be shown again.");
     }
@@ -120,7 +136,9 @@ pub fn print_token_list(resp: &TokenListResponse, json: bool) -> anyhow::Result<
         );
         for t in &resp.tokens {
             let status = if t.revoked { "revoked" } else { "active" };
-            let bound = t.bound_uid.map_or_else(|| "-".to_owned(), |u| u.to_string());
+            let bound = t
+                .bound_uid
+                .map_or_else(|| "-".to_owned(), |u| u.to_string());
             let expires = t.expires_at.as_deref().unwrap_or("never");
             let policies = t.policies.join(",");
             println!(

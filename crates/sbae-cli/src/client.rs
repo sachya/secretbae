@@ -66,8 +66,13 @@ impl Client {
     ) -> anyhow::Result<Resp> {
         #[cfg(unix)]
         {
-            let mut stream = std::os::unix::net::UnixStream::connect(&self.socket_path)
-                .map_err(|e| anyhow::anyhow!("failed to connect to daemon socket '{}': {e}", self.socket_path.display()))?;
+            let mut stream =
+                std::os::unix::net::UnixStream::connect(&self.socket_path).map_err(|e| {
+                    anyhow::anyhow!(
+                        "failed to connect to daemon socket '{}': {e}",
+                        self.socket_path.display()
+                    )
+                })?;
             send_http_request(&mut stream, route, self.token.as_deref(), request)
         }
 
@@ -113,7 +118,9 @@ pub fn send_http_request<Req: Serialize, Resp: DeserializeOwned, S: Read + Write
 }
 
 /// Reads and parses an HTTP/1.1 response from a stream.
-pub fn parse_http_response<Resp: DeserializeOwned, R: Read>(stream: &mut R) -> anyhow::Result<Resp> {
+pub fn parse_http_response<Resp: DeserializeOwned, R: Read>(
+    stream: &mut R,
+) -> anyhow::Result<Resp> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 4096];
     let header_end_pos;
@@ -139,16 +146,20 @@ pub fn parse_http_response<Resp: DeserializeOwned, R: Read>(stream: &mut R) -> a
         .map_err(|e| anyhow::anyhow!("daemon returned non-UTF-8 HTTP headers: {e}"))?;
 
     let mut lines = header_text.lines();
-    let status_line = lines.next().ok_or_else(|| anyhow::anyhow!("empty HTTP response"))?;
+    let status_line = lines
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("empty HTTP response"))?;
 
     let mut status_parts = status_line.split_whitespace();
-    let _proto = status_parts.next().ok_or_else(|| anyhow::anyhow!("invalid HTTP status line"))?;
+    let _proto = status_parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("invalid HTTP status line"))?;
     let status_code_str = status_parts
         .next()
         .ok_or_else(|| anyhow::anyhow!("missing status code in HTTP status line"))?;
-    let status_code: u16 = status_code_str
-        .parse()
-        .map_err(|_| anyhow::anyhow!("malformed status code '{status_code_str}' in HTTP response"))?;
+    let status_code: u16 = status_code_str.parse().map_err(|_| {
+        anyhow::anyhow!("malformed status code '{status_code_str}' in HTTP response")
+    })?;
 
     let mut content_length: Option<usize> = None;
     for line in lines {
@@ -249,7 +260,10 @@ mod tests {
         let written = String::from_utf8(stream.write_buf).unwrap();
         assert!(written.starts_with("POST /v1/test HTTP/1.1\r\n"));
         assert!(written.contains("authorization: Bearer my_token\r\n"));
-        assert!(written.contains("content-type: application/json\r\n") || written.contains("Content-Type: application/json\r\n"));
+        assert!(
+            written.contains("content-type: application/json\r\n")
+                || written.contains("Content-Type: application/json\r\n")
+        );
         assert!(written.ends_with("{\"path\":\"prod/db\"}"));
     }
 

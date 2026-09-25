@@ -38,8 +38,13 @@ pub fn derive(input_material: &[u8], info: &[u8]) -> Result<Key32> {
 
 /// Derive a key from a human-chosen passphrase. Intentionally slow.
 pub fn derive_from_passphrase(passphrase: &[u8], salt: &[u8; SALT_LEN]) -> Result<Key32> {
-    let params = Params::new(BACKUP_MEMORY_KIB, BACKUP_ITERATIONS, BACKUP_LANES, Some(Key32::LEN))
-        .map_err(|_| Error::Kdf)?;
+    let params = Params::new(
+        BACKUP_MEMORY_KIB,
+        BACKUP_ITERATIONS,
+        BACKUP_LANES,
+        Some(Key32::LEN),
+    )
+    .map_err(|_| Error::Kdf)?;
 
     let mut okm = [0u8; Key32::LEN];
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
@@ -69,7 +74,11 @@ mod tests {
     fn info_domain_separates() {
         let a = derive(b"input", b"secretbae/kek/v1").unwrap();
         let b = derive(b"input", b"secretbae/audit/v1").unwrap();
-        assert_ne!(a.expose(), b.expose(), "subkeys from one master must be unrelated");
+        assert_ne!(
+            a.expose(),
+            b.expose(),
+            "subkeys from one master must be unrelated"
+        );
     }
 
     #[test]

@@ -63,8 +63,7 @@ impl Harness {
             })
             .unwrap();
 
-        let state =
-            Arc::new(DaemonState::new(store, Box::new(backend), master, 1).unwrap());
+        let state = Arc::new(DaemonState::new(store, Box::new(backend), master, 1).unwrap());
         let listener_path = socket.clone();
 
         std::thread::spawn(move || {
@@ -112,7 +111,11 @@ impl Harness {
             .nth(1)
             .and_then(|code| code.parse().ok())
             .unwrap_or(0);
-        let payload = response.split("\r\n\r\n").nth(1).unwrap_or_default().to_owned();
+        let payload = response
+            .split("\r\n\r\n")
+            .nth(1)
+            .unwrap_or_default()
+            .to_owned();
         (status, payload)
     }
 }
@@ -146,8 +149,11 @@ fn a_secret_written_over_the_socket_reads_back_identically() {
     let (status, _) = write_secret(&harness, token, "prod/billing/db", "postgres://user:pw@/db");
     assert_eq!(status, 200);
 
-    let (status, body) =
-        harness.post(api::route::READ, Some(token), r#"{"path":"prod/billing/db"}"#);
+    let (status, body) = harness.post(
+        api::route::READ,
+        Some(token),
+        r#"{"path":"prod/billing/db"}"#,
+    );
     assert_eq!(status, 200);
 
     let parsed: api::ReadResponse = serde_json::from_str(&body).unwrap();
@@ -172,8 +178,11 @@ fn a_forged_token_is_refused() {
     let (harness, _) = Harness::start(None);
     let forged = issue().unwrap();
 
-    let (status, _) =
-        harness.post(api::route::READ, Some(forged.secret.expose()), r#"{"path":"prod/db"}"#);
+    let (status, _) = harness.post(
+        api::route::READ,
+        Some(forged.secret.expose()),
+        r#"{"path":"prod/db"}"#,
+    );
     assert_eq!(status, 403);
 }
 
@@ -199,11 +208,17 @@ fn a_token_bound_to_another_uid_is_refused_over_a_real_socket() {
     let (harness, issued) = Harness::start(Some(impossible_uid));
 
     let (status, _) = write_secret(&harness, issued.secret.expose(), "prod/db", "value");
-    assert_eq!(status, 403, "the connecting process does not have the bound uid");
+    assert_eq!(
+        status, 403,
+        "the connecting process does not have the bound uid"
+    );
 
     let (harness, issued) = Harness::start(Some(unsafe { libc::getuid() }));
     let (status, _) = write_secret(&harness, issued.secret.expose(), "prod/db", "value");
-    assert_eq!(status, 200, "the same token bound to the real uid is accepted");
+    assert_eq!(
+        status, 200,
+        "the same token bound to the real uid is accepted"
+    );
 }
 
 #[test]
@@ -218,8 +233,11 @@ fn versions_accumulate_and_roll_back_over_the_socket() {
     let listed: api::VersionsResponse = serde_json::from_str(&body).unwrap();
     assert_eq!(listed.versions.len(), 2);
 
-    let (status, _) =
-        harness.post(api::route::ROLLBACK, Some(token), r#"{"path":"prod/db","to":1}"#);
+    let (status, _) = harness.post(
+        api::route::ROLLBACK,
+        Some(token),
+        r#"{"path":"prod/db","to":1}"#,
+    );
     assert_eq!(status, 200);
 
     let (_, body) = harness.post(api::route::READ, Some(token), r#"{"path":"prod/db"}"#);
@@ -263,7 +281,10 @@ fn resolve_returns_every_requested_path_in_one_request() {
 
     let resolved: api::ResolveResponse = serde_json::from_str(&body).unwrap();
     assert_eq!(resolved.secrets.len(), 2);
-    assert_eq!(BASE64.decode(resolved.secrets[0].value.as_bytes()).unwrap(), b"db-value");
+    assert_eq!(
+        BASE64.decode(resolved.secrets[0].value.as_bytes()).unwrap(),
+        b"db-value"
+    );
 
     let (status, _) = harness.post(
         api::route::RESOLVE,
@@ -294,8 +315,15 @@ fn operations_extend_a_chain_that_still_verifies() {
     assert_eq!(status, 200);
 
     let outcome: api::AuditVerifyResponse = serde_json::from_str(&body).unwrap();
-    assert!(outcome.broken_at.is_none(), "chain broken: {:?}", outcome.detail);
-    assert!(outcome.entries >= 3, "the write, the read and the denial must all be recorded");
+    assert!(
+        outcome.broken_at.is_none(),
+        "chain broken: {:?}",
+        outcome.detail
+    );
+    assert!(
+        outcome.entries >= 3,
+        "the write, the read and the denial must all be recorded"
+    );
 }
 
 /// A secret's value must appear in exactly one place: the response to an explicit read.
@@ -325,8 +353,14 @@ fn a_secret_value_reaches_no_response_or_record_except_its_own_read() {
         (api::route::LIST, "{}"),
         (api::route::VERSIONS, r#"{"path":"prod/canary/key"}"#),
         (api::route::STATUS, "{}"),
-        (api::route::TAG_ADD, r#"{"path":"prod/canary/key","tags":["app=canary"]}"#),
-        (api::route::TAG_REMOVE, r#"{"path":"prod/canary/key","tags":["app"]}"#),
+        (
+            api::route::TAG_ADD,
+            r#"{"path":"prod/canary/key","tags":["app=canary"]}"#,
+        ),
+        (
+            api::route::TAG_REMOVE,
+            r#"{"path":"prod/canary/key","tags":["app"]}"#,
+        ),
         (api::route::TOKEN_LIST, "{}"),
         (api::route::POLICY_LIST, "{}"),
         (api::route::AUDIT_VERIFY, "{}"),
@@ -344,7 +378,10 @@ fn a_secret_value_reaches_no_response_or_record_except_its_own_read() {
     let encoded = BASE64.encode(CANARY.as_bytes());
     for (route, body) in surface {
         let (_, response) = harness.post(route, Some(token), body);
-        assert!(!response.contains(&encoded), "{route} returned the encoded value");
+        assert!(
+            !response.contains(&encoded),
+            "{route} returned the encoded value"
+        );
     }
 
     // Every audit column, in both forms. This is the durable record.
@@ -356,7 +393,12 @@ fn a_secret_value_reaches_no_response_or_record_except_its_own_read() {
     let rows = statement
         .query_map([], |row| {
             Ok((0..7)
-                .map(|column| row.get::<_, Option<String>>(column).ok().flatten().unwrap_or_default())
+                .map(|column| {
+                    row.get::<_, Option<String>>(column)
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default()
+                })
                 .collect::<Vec<String>>()
                 .join("\u{1}"))
         })
@@ -364,12 +406,25 @@ fn a_secret_value_reaches_no_response_or_record_except_its_own_read() {
 
     for row in rows {
         let row = row.unwrap();
-        assert!(!row.contains(CANARY), "the audit log recorded a secret value: {row}");
-        assert!(!row.contains(&encoded), "the audit log recorded an encoded secret value");
+        assert!(
+            !row.contains(CANARY),
+            "the audit log recorded a secret value: {row}"
+        );
+        assert!(
+            !row.contains(&encoded),
+            "the audit log recorded an encoded secret value"
+        );
     }
 
     // The control: an explicit read does return it, so the assertions above are not vacuous.
-    let (_, read) = harness.post(api::route::READ, Some(token), r#"{"path":"prod/canary/key"}"#);
+    let (_, read) = harness.post(
+        api::route::READ,
+        Some(token),
+        r#"{"path":"prod/canary/key"}"#,
+    );
     let parsed: api::ReadResponse = serde_json::from_str(&read).unwrap();
-    assert_eq!(BASE64.decode(parsed.value.as_bytes()).unwrap(), CANARY.as_bytes());
+    assert_eq!(
+        BASE64.decode(parsed.value.as_bytes()).unwrap(),
+        CANARY.as_bytes()
+    );
 }

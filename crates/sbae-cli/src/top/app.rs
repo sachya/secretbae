@@ -508,8 +508,18 @@ impl App {
                     .cmp(&b.current_version)
                     .then_with(|| a.path.cmp(&b.path)),
                 SortColumn::Tags => {
-                    let tags_a = a.tags.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
-                    let tags_b = b.tags.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+                    let tags_a = a
+                        .tags
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let tags_b = b
+                        .tags
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",");
                     tags_a.cmp(&tags_b).then_with(|| a.path.cmp(&b.path))
                 }
                 SortColumn::Updated => a
@@ -643,15 +653,24 @@ mod tests {
         assert_eq!(app.filtered_secrets().len(), 3);
 
         app.cycle_tag();
-        assert_eq!(app.selected_tag().map(ToString::to_string).as_deref(), Some("env=dev"));
+        assert_eq!(
+            app.selected_tag().map(ToString::to_string).as_deref(),
+            Some("env=dev")
+        );
         assert_eq!(app.filtered_secrets().len(), 1);
 
         app.cycle_tag();
-        assert_eq!(app.selected_tag().map(ToString::to_string).as_deref(), Some("env=prod"));
+        assert_eq!(
+            app.selected_tag().map(ToString::to_string).as_deref(),
+            Some("env=prod")
+        );
         assert_eq!(app.filtered_secrets().len(), 2);
 
         app.cycle_tag();
-        assert_eq!(app.selected_tag().map(ToString::to_string).as_deref(), Some("tier=backend"));
+        assert_eq!(
+            app.selected_tag().map(ToString::to_string).as_deref(),
+            Some("tier=backend")
+        );
         assert_eq!(app.filtered_secrets().len(), 1);
 
         app.cycle_tag();
@@ -659,7 +678,9 @@ mod tests {
         assert_eq!(app.filtered_secrets().len(), 3);
     }
 
+    // Table-driven over every column and both directions; splitting it loses the exhaustive check.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn sorting_by_each_column_orders_correctly_and_reversing_inverts_it() {
         let mut app = App::new("/run/secretbae/sock");
         app.set_secrets(sample_secrets());
@@ -667,22 +688,44 @@ mod tests {
         // 1. Path sort
         assert_eq!(app.sort_criteria().column, SortColumn::Path);
         assert_eq!(app.sort_criteria().direction, SortDirection::Ascending);
-        let paths: Vec<&str> = app.filtered_secrets().iter().map(|s| s.path.as_str()).collect();
-        assert_eq!(paths, vec!["dev/secret-b", "prod/secret-a", "prod/secret-c"]);
+        let paths: Vec<&str> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.path.as_str())
+            .collect();
+        assert_eq!(
+            paths,
+            vec!["dev/secret-b", "prod/secret-a", "prod/secret-c"]
+        );
 
         app.reverse_sort();
         assert_eq!(app.sort_criteria().direction, SortDirection::Descending);
-        let paths: Vec<&str> = app.filtered_secrets().iter().map(|s| s.path.as_str()).collect();
-        assert_eq!(paths, vec!["prod/secret-c", "prod/secret-a", "dev/secret-b"]);
+        let paths: Vec<&str> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.path.as_str())
+            .collect();
+        assert_eq!(
+            paths,
+            vec!["prod/secret-c", "prod/secret-a", "dev/secret-b"]
+        );
 
         // 2. Versions sort (version_count)
         app.cycle_sort();
         assert_eq!(app.sort_criteria().column, SortColumn::Versions);
-        let versions: Vec<u64> = app.filtered_secrets().iter().map(|s| s.version_count).collect();
+        let versions: Vec<u64> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.version_count)
+            .collect();
         assert_eq!(versions, vec![1, 2, 5]);
 
         app.reverse_sort();
-        let versions: Vec<u64> = app.filtered_secrets().iter().map(|s| s.version_count).collect();
+        let versions: Vec<u64> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.version_count)
+            .collect();
         assert_eq!(versions, vec![5, 2, 1]);
 
         // 3. Current version sort
@@ -709,7 +752,13 @@ mod tests {
         let tags: Vec<String> = app
             .filtered_secrets()
             .iter()
-            .map(|s| s.tags.iter().map(ToString::to_string).collect::<Vec<_>>().join(","))
+            .map(|s| {
+                s.tags
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
             .collect();
         assert_eq!(tags, vec!["env=dev", "env=prod", "env=prod,tier=backend"]);
 
@@ -717,14 +766,24 @@ mod tests {
         let tags: Vec<String> = app
             .filtered_secrets()
             .iter()
-            .map(|s| s.tags.iter().map(ToString::to_string).collect::<Vec<_>>().join(","))
+            .map(|s| {
+                s.tags
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
             .collect();
         assert_eq!(tags, vec!["env=prod,tier=backend", "env=prod", "env=dev"]);
 
         // 5. Updated sort
         app.cycle_sort();
         assert_eq!(app.sort_criteria().column, SortColumn::Updated);
-        let updated: Vec<&str> = app.filtered_secrets().iter().map(|s| s.updated_at.as_str()).collect();
+        let updated: Vec<&str> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.updated_at.as_str())
+            .collect();
         assert_eq!(
             updated,
             vec![
@@ -735,7 +794,11 @@ mod tests {
         );
 
         app.reverse_sort();
-        let updated: Vec<&str> = app.filtered_secrets().iter().map(|s| s.updated_at.as_str()).collect();
+        let updated: Vec<&str> = app
+            .filtered_secrets()
+            .iter()
+            .map(|s| s.updated_at.as_str())
+            .collect();
         assert_eq!(
             updated,
             vec![
@@ -779,7 +842,8 @@ mod tests {
         assert_eq!(app.filtered_secrets().len(), 3);
         assert_eq!(app.status_message(), None);
 
-        let err_msg = "failed to connect to daemon socket '/run/secretbae/sock': Connection refused";
+        let err_msg =
+            "failed to connect to daemon socket '/run/secretbae/sock': Connection refused";
         app.set_status_error(err_msg);
 
         assert_eq!(
@@ -813,25 +877,73 @@ mod tests {
 
         let sources = [("mod.rs", mod_src), ("render.rs", render_src)];
         for (name, content) in sources {
-            assert!(!content.contains(&read_route_kw), "{name} references {read_route_kw}");
-            assert!(!content.contains(&resolve_route_kw), "{name} references {resolve_route_kw}");
-            assert!(!content.contains(&read_endpoint), "{name} references {read_endpoint}");
-            assert!(!content.contains(&resolve_endpoint), "{name} references {resolve_endpoint}");
-            assert!(!content.contains(&read_req_type), "{name} references {read_req_type}");
-            assert!(!content.contains(&read_resp_type), "{name} references {read_resp_type}");
-            assert!(!content.contains(&resolve_req_type), "{name} references {resolve_req_type}");
-            assert!(!content.contains(&resolve_resp_type), "{name} references {resolve_resp_type}");
+            assert!(
+                !content.contains(&read_route_kw),
+                "{name} references {read_route_kw}"
+            );
+            assert!(
+                !content.contains(&resolve_route_kw),
+                "{name} references {resolve_route_kw}"
+            );
+            assert!(
+                !content.contains(&read_endpoint),
+                "{name} references {read_endpoint}"
+            );
+            assert!(
+                !content.contains(&resolve_endpoint),
+                "{name} references {resolve_endpoint}"
+            );
+            assert!(
+                !content.contains(&read_req_type),
+                "{name} references {read_req_type}"
+            );
+            assert!(
+                !content.contains(&read_resp_type),
+                "{name} references {read_resp_type}"
+            );
+            assert!(
+                !content.contains(&resolve_req_type),
+                "{name} references {resolve_req_type}"
+            );
+            assert!(
+                !content.contains(&resolve_resp_type),
+                "{name} references {resolve_resp_type}"
+            );
         }
 
         let app_code = app_src.split("#[cfg(test)]").next().unwrap();
-        assert!(!app_code.contains(&read_route_kw), "app.rs references {read_route_kw}");
-        assert!(!app_code.contains(&resolve_route_kw), "app.rs references {resolve_route_kw}");
-        assert!(!app_code.contains(&read_endpoint), "app.rs references {read_endpoint}");
-        assert!(!app_code.contains(&resolve_endpoint), "app.rs references {resolve_endpoint}");
-        assert!(!app_code.contains(&read_req_type), "app.rs references {read_req_type}");
-        assert!(!app_code.contains(&read_resp_type), "app.rs references {read_resp_type}");
-        assert!(!app_code.contains(&resolve_req_type), "app.rs references {resolve_req_type}");
-        assert!(!app_code.contains(&resolve_resp_type), "app.rs references {resolve_resp_type}");
+        assert!(
+            !app_code.contains(&read_route_kw),
+            "app.rs references {read_route_kw}"
+        );
+        assert!(
+            !app_code.contains(&resolve_route_kw),
+            "app.rs references {resolve_route_kw}"
+        );
+        assert!(
+            !app_code.contains(&read_endpoint),
+            "app.rs references {read_endpoint}"
+        );
+        assert!(
+            !app_code.contains(&resolve_endpoint),
+            "app.rs references {resolve_endpoint}"
+        );
+        assert!(
+            !app_code.contains(&read_req_type),
+            "app.rs references {read_req_type}"
+        );
+        assert!(
+            !app_code.contains(&read_resp_type),
+            "app.rs references {read_resp_type}"
+        );
+        assert!(
+            !app_code.contains(&resolve_req_type),
+            "app.rs references {resolve_req_type}"
+        );
+        assert!(
+            !app_code.contains(&resolve_resp_type),
+            "app.rs references {resolve_resp_type}"
+        );
     }
 
     #[test]

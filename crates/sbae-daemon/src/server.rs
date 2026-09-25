@@ -41,7 +41,11 @@ impl Connected<IncomingStream<'_, UnixListener>> for PeerInfo {
 /// so it fails any uid-bound token rather than being treated as trusted.
 fn peer_credentials(stream: &UnixStream) -> PeerCredentials {
     stream.peer_cred().map_or(
-        PeerCredentials { uid: u32::MAX, gid: u32::MAX, pid: -1 },
+        PeerCredentials {
+            uid: u32::MAX,
+            gid: u32::MAX,
+            pid: -1,
+        },
         |cred| PeerCredentials {
             uid: cred.uid(),
             gid: cred.gid(),
@@ -106,7 +110,9 @@ pub async fn serve(listener: StdUnixListener, state: SharedState) -> Result<()> 
 async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
 
-    let Ok(mut terminate) = signal(SignalKind::terminate()) else { return };
+    let Ok(mut terminate) = signal(SignalKind::terminate()) else {
+        return;
+    };
 
     tokio::select! {
         _ = terminate.recv() => {}

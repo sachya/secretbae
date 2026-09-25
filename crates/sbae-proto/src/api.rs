@@ -417,13 +417,31 @@ mod tests {
     #[test]
     fn every_route_declares_a_required_capability() {
         for route in [
-            route::STATUS, route::READ, route::WRITE, route::LIST, route::VERSIONS,
-            route::ROLLBACK, route::DELETE, route::TAG_ADD, route::TAG_REMOVE, route::RESOLVE,
-            route::TOKEN_CREATE, route::TOKEN_LIST, route::TOKEN_REVOKE, route::POLICY_PUT,
-            route::POLICY_LIST, route::POLICY_DELETE, route::AUDIT_VERIFY,
-            route::REKEY, route::BACKUP, route::RESTORE,
+            route::STATUS,
+            route::READ,
+            route::WRITE,
+            route::LIST,
+            route::VERSIONS,
+            route::ROLLBACK,
+            route::DELETE,
+            route::TAG_ADD,
+            route::TAG_REMOVE,
+            route::RESOLVE,
+            route::TOKEN_CREATE,
+            route::TOKEN_LIST,
+            route::TOKEN_REVOKE,
+            route::POLICY_PUT,
+            route::POLICY_LIST,
+            route::POLICY_DELETE,
+            route::AUDIT_VERIFY,
+            route::REKEY,
+            route::BACKUP,
+            route::RESTORE,
         ] {
-            assert!(required_capability(route).is_some(), "{route} has no capability");
+            assert!(
+                required_capability(route).is_some(),
+                "{route} has no capability"
+            );
         }
     }
 
@@ -437,11 +455,20 @@ mod tests {
     #[test]
     fn management_routes_require_admin() {
         for route in [
-            route::TOKEN_CREATE, route::TOKEN_REVOKE, route::POLICY_PUT,
-            route::POLICY_DELETE, route::AUDIT_VERIFY, route::REKEY, route::BACKUP,
+            route::TOKEN_CREATE,
+            route::TOKEN_REVOKE,
+            route::POLICY_PUT,
+            route::POLICY_DELETE,
+            route::AUDIT_VERIFY,
+            route::REKEY,
+            route::BACKUP,
             route::RESTORE,
         ] {
-            assert_eq!(required_capability(route), Some(Capability::Admin), "{route}");
+            assert_eq!(
+                required_capability(route),
+                Some(Capability::Admin),
+                "{route}"
+            );
         }
     }
 

@@ -104,15 +104,21 @@ jobs:
             sh -n "$f" || exit 1
           done
 
+      - name: Build daemon and CLI binaries
+        run: cargo build --release -p sbae-daemon -p sbae-cli
+
+      - name: Install binaries to their packaged paths
+        run: |
+          sudo install -Dm755 target/release/secretbaed /usr/sbin/secretbaed
+          sudo install -Dm755 target/release/secretbae /usr/bin/secretbae
+
       - name: Unit file is valid
         run: systemd-analyze verify packaging/systemd/secretbaed.service
 
       # Proves the capability set is both sufficient and minimal: the daemon must start with
       # it, and must fail without any single entry.
       - name: Capability set is exactly right
-        run: |
-          cargo build --release -p sbae-daemon -p sbae-cli
-          sudo prlimit --memlock=unlimited -- sh packaging/tests/capability-matrix.sh
+        run: sudo prlimit --memlock=unlimited -- sh packaging/tests/capability-matrix.sh
 
 
   cargo-deny:
@@ -130,6 +136,9 @@ jobs:
   cargo-audit:
     name: Security Vulnerability Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

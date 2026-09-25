@@ -25,7 +25,13 @@ pub enum Capability {
 }
 
 impl Capability {
-    pub const ALL: [Self; 5] = [Self::Read, Self::Write, Self::Delete, Self::List, Self::Admin];
+    pub const ALL: [Self; 5] = [
+        Self::Read,
+        Self::Write,
+        Self::Delete,
+        Self::List,
+        Self::Admin,
+    ];
 
     #[must_use]
     pub fn as_str(self) -> &'static str {
@@ -63,7 +69,10 @@ mod tests {
     #[test]
     fn every_capability_round_trips_through_its_name() {
         for capability in Capability::ALL {
-            assert_eq!(capability.as_str().parse::<Capability>().unwrap(), capability);
+            assert_eq!(
+                capability.as_str().parse::<Capability>().unwrap(),
+                capability
+            );
         }
     }
 
@@ -76,6 +85,9 @@ mod tests {
 
     #[test]
     fn serde_uses_the_same_lowercase_names() {
-        assert_eq!(serde_json::to_string(&Capability::Read).unwrap(), "\"read\"");
+        assert_eq!(
+            serde_json::to_string(&Capability::Read).unwrap(),
+            "\"read\""
+        );
     }
 }

@@ -14,11 +14,19 @@ use crate::top::theme;
 
 pub fn render(app: &App, frame: &mut Frame) {
     let area = frame.area();
-    frame.render_widget(Block::default().style(Style::default().bg(theme::BASE)), area);
+    frame.render_widget(
+        Block::default().style(Style::default().bg(theme::BASE)),
+        area,
+    );
 
     let panes = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1), Constraint::Min(6), Constraint::Length(1)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(6),
+            Constraint::Length(1),
+        ])
         .split(area);
 
     render_title(app, frame, panes[0]);
@@ -32,17 +40,32 @@ fn render_title(app: &App, frame: &mut Frame, area: Rect) {
     let left = vec![
         Span::styled(
             " ▍SECRETBAE ",
-            Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("top ", Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "top ",
+            Style::default()
+                .fg(theme::TEXT)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled("· live metadata", Style::default().fg(theme::MUTED)),
     ];
 
     let right = vec![
         Span::styled(
-            if app.is_paused() { " ⏸ PAUSED " } else { " ● LIVE " },
+            if app.is_paused() {
+                " ⏸ PAUSED "
+            } else {
+                " ● LIVE "
+            },
             Style::default()
-                .fg(if app.is_paused() { theme::WARN } else { theme::OK })
+                .fg(if app.is_paused() {
+                    theme::WARN
+                } else {
+                    theme::OK
+                })
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
@@ -61,7 +84,11 @@ fn render_title(app: &App, frame: &mut Frame, area: Rect) {
 fn render_chips(app: &App, frame: &mut Frame, area: Rect) {
     let shown = app.filtered_secrets().len();
     let total = app.secrets().len();
-    let versions: u64 = app.filtered_secrets().iter().map(|secret| secret.version_count).sum();
+    let versions: u64 = app
+        .filtered_secrets()
+        .iter()
+        .map(|secret| secret.version_count)
+        .sum();
 
     let mut spans = Vec::new();
     spans.extend(chip("socket", app.socket_path(), theme::ACCENT_ALT));
@@ -113,6 +140,8 @@ fn panel(title: Line<'static>) -> Block<'static> {
         .title_alignment(Alignment::Left)
 }
 
+// One cohesive layout pass over the table; splitting it up would scatter widget state.
+#[allow(clippy::too_many_lines)]
 fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
     let criteria = app.sort_criteria();
     let heading = |column: SortColumn, text: &str| {
@@ -125,9 +154,13 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
         Cell::from(Span::styled(
             label,
             if sorted {
-                Style::default().fg(theme::WARN).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme::WARN)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme::ACCENT)
+                    .add_modifier(Modifier::BOLD)
             },
         ))
     };
@@ -150,7 +183,9 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
             } else {
                 "  nothing matches the current filter — press / to change it, or t to clear the tag"
             },
-            Style::default().fg(theme::MUTED).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(theme::MUTED)
+                .add_modifier(Modifier::ITALIC),
         ))])]
     } else {
         app.filtered_secrets()
@@ -174,11 +209,16 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
                 }
 
                 Row::new(vec![
-                    Cell::from(Line::from(theme::path_spans(secret.path.as_str(), is_selected))),
+                    Cell::from(Line::from(theme::path_spans(
+                        secret.path.as_str(),
+                        is_selected,
+                    ))),
                     Cell::from(Line::from(theme::version_gauge(secret.version_count))),
                     Cell::from(Span::styled(
                         current,
-                        Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme::ACCENT)
+                            .add_modifier(Modifier::BOLD),
                     )),
                     Cell::from(Line::from(tags)),
                     Cell::from(Line::from(theme::relative_age(&secret.updated_at))),
@@ -190,10 +230,18 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
 
     let title = Line::from(vec![
         Span::styled("─ ", Style::default().fg(theme::BORDER)),
-        Span::styled("KEYS", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "KEYS",
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             format!(" {} ", app.filtered_secrets().len()),
-            Style::default().fg(theme::BASE).bg(theme::ACCENT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::BASE)
+                .bg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
         ),
     ]);
 
@@ -213,7 +261,9 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
     .row_highlight_style(theme::selected_row())
     .highlight_symbol(Span::styled(
         "▶ ",
-        Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(theme::ACCENT)
+            .add_modifier(Modifier::BOLD),
     ));
 
     let mut state = TableState::default();
@@ -225,21 +275,32 @@ fn render_secrets(app: &App, frame: &mut Frame, area: Rect) {
 
 fn render_versions(app: &App, frame: &mut Frame, area: Rect) {
     let Some((path, versions)) = app.versions_detail() else {
-        let message = if app.is_versions_loading() { "loading versions…" } else { "no versions" };
+        let message = if app.is_versions_loading() {
+            "loading versions…"
+        } else {
+            "no versions"
+        };
         frame.render_widget(
-            Paragraph::new(Span::styled(message, Style::default().fg(theme::MUTED)))
-                .block(panel(Line::from(Span::styled(
+            Paragraph::new(Span::styled(message, Style::default().fg(theme::MUTED))).block(panel(
+                Line::from(Span::styled(
                     "─ VERSIONS",
-                    Style::default().fg(theme::ACCENT_ALT).add_modifier(Modifier::BOLD),
-                )))),
+                    Style::default()
+                        .fg(theme::ACCENT_ALT)
+                        .add_modifier(Modifier::BOLD),
+                )),
+            )),
             area,
         );
         return;
     };
 
     let header = Row::new(
-        ["VERSION", "STATE", "CREATED", "BY", "COMMENT"]
-            .map(|text| Cell::from(Span::styled(text, Style::default().add_modifier(Modifier::BOLD)))),
+        ["VERSION", "STATE", "CREATED", "BY", "COMMENT"].map(|text| {
+            Cell::from(Span::styled(
+                text,
+                Style::default().add_modifier(Modifier::BOLD),
+            ))
+        }),
     )
     .style(theme::header_cell())
     .height(1);
@@ -252,9 +313,14 @@ fn render_versions(app: &App, frame: &mut Frame, area: Rect) {
             Row::new(vec![
                 Cell::from(Span::styled(
                     format!("v{}", info.version),
-                    Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme::ACCENT)
+                        .add_modifier(Modifier::BOLD),
                 )),
-                Cell::from(Span::styled(marker, Style::default().fg(colour).add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled(
+                    marker,
+                    Style::default().fg(colour).add_modifier(Modifier::BOLD),
+                )),
                 Cell::from(Line::from(theme::relative_age(&info.created_at))),
                 Cell::from(Span::styled(
                     info.created_by.clone().unwrap_or_else(|| "—".to_owned()),
@@ -273,7 +339,9 @@ fn render_versions(app: &App, frame: &mut Frame, area: Rect) {
         Span::styled("─ ", Style::default().fg(theme::BORDER)),
         Span::styled(
             "VERSIONS ",
-            Style::default().fg(theme::ACCENT_ALT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::ACCENT_ALT)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(path.to_string(), Style::default().fg(theme::TEXT)),
     ]);
@@ -305,12 +373,21 @@ fn render_versions(app: &App, frame: &mut Frame, area: Rect) {
 /// rather than competing with them for the same line.
 fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
     if let Some(status) = app.status_message() {
-        let (marker, colour) =
-            if status.is_error { (" ✖ ", theme::DANGER) } else { (" ✔ ", theme::OK) };
+        let (marker, colour) = if status.is_error {
+            (" ✖ ", theme::DANGER)
+        } else {
+            (" ✔ ", theme::OK)
+        };
 
         frame.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled(marker, Style::default().bg(colour).fg(theme::BASE).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    marker,
+                    Style::default()
+                        .bg(colour)
+                        .fg(theme::BASE)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(format!(" {}", status.text), Style::default().fg(colour)),
             ])),
             area,
@@ -320,7 +397,12 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
 
     let hints: Vec<(&str, &str)> = match app.mode() {
         AppMode::Filtering => vec![("type", "filter"), ("↵", "apply"), ("esc", "cancel")],
-        AppMode::Detail => vec![("↑↓", "version"), ("esc", "back"), ("r", "refresh"), ("q", "quit")],
+        AppMode::Detail => vec![
+            ("↑↓", "version"),
+            ("esc", "back"),
+            ("r", "refresh"),
+            ("q", "quit"),
+        ],
         AppMode::List => vec![
             ("↑↓", "move"),
             ("↵", "versions"),
@@ -336,7 +418,9 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
     if app.mode() == AppMode::Filtering {
         spans.push(Span::styled(
             format!(" /{}▏", app.filter_input()),
-            Style::default().fg(theme::WARN).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::WARN)
+                .add_modifier(Modifier::BOLD),
         ));
     }
     for (key, label) in hints {
@@ -348,7 +432,11 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
 
 /// Lay `left` against the start of the line and `right` against its end.
 fn justified(width: u16, left: Vec<Span<'static>>, right: Vec<Span<'static>>) -> Line<'static> {
-    let used: usize = left.iter().chain(right.iter()).map(|span| span.content.chars().count()).sum();
+    let used: usize = left
+        .iter()
+        .chain(right.iter())
+        .map(|span| span.content.chars().count())
+        .sum();
     let padding = usize::from(width).saturating_sub(used);
 
     let mut spans = left;
@@ -364,7 +452,11 @@ mod tests {
     #[test]
     fn a_justified_line_fills_exactly_the_available_width() {
         let line = justified(40, vec![Span::raw("left")], vec![Span::raw("right")]);
-        let rendered: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
+        let rendered: String = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
 
         assert_eq!(rendered.chars().count(), 40);
         assert!(rendered.starts_with("left"));
@@ -374,7 +466,11 @@ mod tests {
     /// A narrow terminal must not panic on the subtraction that computes the padding.
     #[test]
     fn justification_survives_a_width_smaller_than_its_content() {
-        let line = justified(3, vec![Span::raw("a long left side")], vec![Span::raw("and right")]);
+        let line = justified(
+            3,
+            vec![Span::raw("a long left side")],
+            vec![Span::raw("and right")],
+        );
         assert!(!line.spans.is_empty());
     }
 }

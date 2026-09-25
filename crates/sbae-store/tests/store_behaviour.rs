@@ -2,9 +2,7 @@
 
 use sbae_core::{MasterKey, SealedVersion};
 use sbae_proto::{SecretPath, Tag, TagSelector, Version, VersionState};
-use sbae_store::{
-    DeleteMode, ListFilter, Store, StoreError, VersionSelector, WriteMeta,
-};
+use sbae_store::{DeleteMode, ListFilter, Store, StoreError, VersionSelector, WriteMeta};
 
 const GENERATION: u32 = 1;
 
@@ -15,22 +13,29 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        Self { store: Store::open_in_memory().unwrap(), master: MasterKey::generate().unwrap() }
+        Self {
+            store: Store::open_in_memory().unwrap(),
+            master: MasterKey::generate().unwrap(),
+        }
     }
 
     /// Mirrors the daemon's write path: reserve a slot, seal against its binding, commit.
     fn put(&mut self, path: &str, value: &[u8]) -> Version {
         let path = SecretPath::new(path).unwrap();
         let slot = self.store.begin_write(&path).unwrap();
-        let sealed =
-            SealedVersion::seal(&self.master, GENERATION, slot.binding(), value).unwrap();
+        let sealed = SealedVersion::seal(&self.master, GENERATION, slot.binding(), value).unwrap();
         slot.commit(&sealed, &WriteMeta::default()).unwrap()
     }
 
     fn get(&self, path: &str, selector: VersionSelector) -> Result<Vec<u8>, StoreError> {
         let path = SecretPath::new(path).unwrap();
         let stored = self.store.read_version(&path, selector)?;
-        Ok(stored.sealed.open(&self.master, stored.binding).unwrap().expose().to_vec())
+        Ok(stored
+            .sealed
+            .open(&self.master, stored.binding)
+            .unwrap()
+            .expose()
+            .to_vec())
     }
 
     fn current(&self, path: &str) -> Result<Vec<u8>, StoreError> {
@@ -60,7 +65,12 @@ fn writes_append_immutable_versions() {
 
     assert_eq!(fixture.current("prod/billing/db").unwrap(), b"third");
     assert_eq!(
-        fixture.get("prod/billing/db", VersionSelector::Exact(Version::new(1).unwrap())).unwrap(),
+        fixture
+            .get(
+                "prod/billing/db",
+                VersionSelector::Exact(Version::new(1).unwrap())
+            )
+            .unwrap(),
         b"first",
         "earlier versions must remain readable"
     );
@@ -72,16 +82,24 @@ fn rollback_moves_the_pointer_without_discarding_anything() {
     fixture.put("prod/db", b"good");
     fixture.put("prod/db", b"bad");
 
-    fixture.store.rollback(&path("prod/db"), Version::new(1).unwrap()).unwrap();
+    fixture
+        .store
+        .rollback(&path("prod/db"), Version::new(1).unwrap())
+        .unwrap();
     assert_eq!(fixture.current("prod/db").unwrap(), b"good");
 
     // The rolled-past version is still there, which is what makes a rollback reversible.
     assert_eq!(
-        fixture.get("prod/db", VersionSelector::Exact(Version::new(2).unwrap())).unwrap(),
+        fixture
+            .get("prod/db", VersionSelector::Exact(Version::new(2).unwrap()))
+            .unwrap(),
         b"bad"
     );
 
-    fixture.store.rollback(&path("prod/db"), Version::new(2).unwrap()).unwrap();
+    fixture
+        .store
+        .rollback(&path("prod/db"), Version::new(2).unwrap())
+        .unwrap();
     assert_eq!(fixture.current("prod/db").unwrap(), b"bad");
 }
 
@@ -90,7 +108,10 @@ fn a_write_after_a_rollback_still_takes_the_next_unused_number() {
     let mut fixture = Fixture::new();
     fixture.put("prod/db", b"v1");
     fixture.put("prod/db", b"v2");
-    fixture.store.rollback(&path("prod/db"), Version::new(1).unwrap()).unwrap();
+    fixture
+        .store
+        .rollback(&path("prod/db"), Version::new(1).unwrap())
+        .unwrap();
 
     // Version 2 is already taken, so the new write must be 3 even though current is 1.
     assert_eq!(fixture.put("prod/db", b"v3").get(), 3);
@@ -104,17 +125,34 @@ fn soft_delete_hides_a_version_but_destroy_discards_the_ciphertext() {
     fixture.put("prod/db", b"v2");
 
     let v1 = VersionSelector::Exact(Version::new(1).unwrap());
-    fixture.store.delete_version(&path("prod/db"), v1, DeleteMode::Soft).unwrap();
-    assert!(matches!(fixture.get("prod/db", v1), Err(StoreError::NotFound)));
+    fixture
+        .store
+        .delete_version(&path("prod/db"), v1, DeleteMode::Soft)
+        .unwrap();
+    assert!(matches!(
+        fixture.get("prod/db", v1),
+        Err(StoreError::NotFound)
+    ));
 
     let states = fixture.store.versions(&path("prod/db")).unwrap();
-    assert_eq!(states[1].state, VersionState::Deleted, "the row survives a soft delete");
+    assert_eq!(
+        states[1].state,
+        VersionState::Deleted,
+        "the row survives a soft delete"
+    );
 
-    fixture.store.delete_version(&path("prod/db"), v1, DeleteMode::Destroy).unwrap();
+    fixture
+        .store
+        .delete_version(&path("prod/db"), v1, DeleteMode::Destroy)
+        .unwrap();
     let states = fixture.store.versions(&path("prod/db")).unwrap();
     assert_eq!(states[1].state, VersionState::Destroyed);
 
-    assert_eq!(fixture.current("prod/db").unwrap(), b"v2", "other versions are unaffected");
+    assert_eq!(
+        fixture.current("prod/db").unwrap(),
+        b"v2",
+        "other versions are unaffected"
+    );
 }
 
 #[test]
@@ -132,7 +170,11 @@ fn retention_destroys_versions_beyond_the_window() {
         .filter(|v| v.state == VersionState::Destroyed)
         .map(|v| v.version.get())
         .collect();
-    assert_eq!(destroyed, vec![3, 2, 1], "the default window keeps the newest 10");
+    assert_eq!(
+        destroyed,
+        vec![3, 2, 1],
+        "the default window keeps the newest 10"
+    );
 
     assert_eq!(fixture.current("prod/db").unwrap(), b"v13");
     assert!(fixture
@@ -145,7 +187,10 @@ fn missing_paths_and_missing_versions_are_indistinguishable() {
     let mut fixture = Fixture::new();
     fixture.put("prod/db", b"v1");
 
-    assert!(matches!(fixture.current("prod/absent"), Err(StoreError::NotFound)));
+    assert!(matches!(
+        fixture.current("prod/absent"),
+        Err(StoreError::NotFound)
+    ));
     assert!(matches!(
         fixture.get("prod/db", VersionSelector::Exact(Version::new(99).unwrap())),
         Err(StoreError::NotFound)
@@ -158,14 +203,20 @@ fn tags_attach_detach_and_deduplicate() {
     fixture.put("prod/db", b"v1");
     let db = path("prod/db");
 
-    fixture.store.add_tags(&db, &[tag("env=prod"), tag("app=billing")]).unwrap();
+    fixture
+        .store
+        .add_tags(&db, &[tag("env=prod"), tag("app=billing")])
+        .unwrap();
     fixture.store.add_tags(&db, &[tag("env=prod")]).unwrap();
 
     let tags = fixture.store.tags(&db).unwrap();
     assert_eq!(tags.len(), 2, "re-adding a tag must not duplicate it");
     assert_eq!(tags[0].to_string(), "app=billing");
 
-    fixture.store.remove_tags(&db, &[selector("app=billing")]).unwrap();
+    fixture
+        .store
+        .remove_tags(&db, &[selector("app=billing")])
+        .unwrap();
     assert_eq!(fixture.store.tags(&db).unwrap(), vec![tag("env=prod")]);
     assert_eq!(
         fixture.store.all_distinct_tags().unwrap(),
@@ -183,22 +234,37 @@ fn list_filters_by_every_requested_tag() {
 
     fixture
         .store
-        .add_tags(&path("prod/billing/db"), &[tag("env=prod"), tag("app=billing")])
+        .add_tags(
+            &path("prod/billing/db"),
+            &[tag("env=prod"), tag("app=billing")],
+        )
         .unwrap();
-    fixture.store.add_tags(&path("prod/search/db"), &[tag("env=prod")]).unwrap();
-    fixture.store.add_tags(&path("dev/billing/db"), &[tag("app=billing")]).unwrap();
+    fixture
+        .store
+        .add_tags(&path("prod/search/db"), &[tag("env=prod")])
+        .unwrap();
+    fixture
+        .store
+        .add_tags(&path("dev/billing/db"), &[tag("app=billing")])
+        .unwrap();
 
     let matched = |tags: Vec<Tag>| -> Vec<String> {
         fixture
             .store
-            .list(&ListFilter { tags, ..ListFilter::default() })
+            .list(&ListFilter {
+                tags,
+                ..ListFilter::default()
+            })
             .unwrap()
             .into_iter()
             .map(|s| s.path.to_string())
             .collect()
     };
 
-    assert_eq!(matched(vec![tag("env=prod")]), ["prod/billing/db", "prod/search/db"]);
+    assert_eq!(
+        matched(vec![tag("env=prod")]),
+        ["prod/billing/db", "prod/search/db"]
+    );
     assert_eq!(
         matched(vec![tag("env=prod"), tag("app=billing")]),
         ["prod/billing/db"],
@@ -218,7 +284,10 @@ fn list_prefix_respects_segment_boundaries_and_underscores() {
     let listed = |prefix: &str| -> Vec<String> {
         fixture
             .store
-            .list(&ListFilter { prefix: Some(prefix.to_owned()), ..ListFilter::default() })
+            .list(&ListFilter {
+                prefix: Some(prefix.to_owned()),
+                ..ListFilter::default()
+            })
             .unwrap()
             .into_iter()
             .map(|s| s.path.to_string())
@@ -226,7 +295,11 @@ fn list_prefix_respects_segment_boundaries_and_underscores() {
     };
 
     assert_eq!(listed("prod/billing"), ["prod/billing/db"]);
-    assert_eq!(listed("prod/billing/"), ["prod/billing/db"], "a trailing slash is equivalent");
+    assert_eq!(
+        listed("prod/billing/"),
+        ["prod/billing/db"],
+        "a trailing slash is equivalent"
+    );
     assert_eq!(listed("prod/billing-admin"), ["prod/billing-admin/db"]);
     assert_eq!(listed("prod").len(), 3);
     assert_eq!(listed("").len(), 3);
@@ -253,11 +326,20 @@ fn ciphertext_relocated_between_secrets_fails_to_open() {
     fixture.put("prod/db", b"production-password");
     fixture.put("dev/db", b"development-password");
 
-    let production = fixture.store.read_version(&path("prod/db"), VersionSelector::Current).unwrap();
-    let development = fixture.store.read_version(&path("dev/db"), VersionSelector::Current).unwrap();
+    let production = fixture
+        .store
+        .read_version(&path("prod/db"), VersionSelector::Current)
+        .unwrap();
+    let development = fixture
+        .store
+        .read_version(&path("dev/db"), VersionSelector::Current)
+        .unwrap();
 
     let smuggled = production.sealed.open(&fixture.master, development.binding);
-    assert!(smuggled.is_err(), "prod ciphertext must not open in the dev slot");
+    assert!(
+        smuggled.is_err(),
+        "prod ciphertext must not open in the dev slot"
+    );
 }
 
 #[test]
@@ -285,7 +367,6 @@ fn version_metadata_is_recorded_and_ordered_newest_first() {
     assert_eq!(versions[1].comment.as_deref(), Some("initial import"));
 }
 
-
 /// Removing by bare key is the common case: an operator retiring a label knows its key, not
 /// necessarily which value is currently attached.
 #[test]
@@ -294,7 +375,10 @@ fn a_bare_key_removes_every_value_under_it() {
     fixture.put("prod/db", b"v1");
     let db = path("prod/db");
 
-    fixture.store.add_tags(&db, &[tag("env=prod"), tag("app=billing")]).unwrap();
+    fixture
+        .store
+        .add_tags(&db, &[tag("env=prod"), tag("app=billing")])
+        .unwrap();
     fixture.store.remove_tags(&db, &[selector("env")]).unwrap();
 
     assert_eq!(fixture.store.tags(&db).unwrap(), vec![tag("app=billing")]);
@@ -313,8 +397,15 @@ fn a_secret_drops_out_of_listings_once_nothing_readable_remains() {
     assert_eq!(listed(), 1);
 
     let v2 = VersionSelector::Exact(Version::new(2).unwrap());
-    fixture.store.delete_version(&db, v2, DeleteMode::Destroy).unwrap();
-    assert_eq!(listed(), 1, "one version is gone but another still decrypts");
+    fixture
+        .store
+        .delete_version(&db, v2, DeleteMode::Destroy)
+        .unwrap();
+    assert_eq!(
+        listed(),
+        1,
+        "one version is gone but another still decrypts"
+    );
     assert_eq!(
         fixture.store.list(&ListFilter::default()).unwrap()[0].current_version,
         Some(Version::new(1).unwrap()),
@@ -322,8 +413,15 @@ fn a_secret_drops_out_of_listings_once_nothing_readable_remains() {
     );
 
     let v1 = VersionSelector::Exact(Version::new(1).unwrap());
-    fixture.store.delete_version(&db, v1, DeleteMode::Destroy).unwrap();
-    assert_eq!(listed(), 0, "nothing readable remains, so nothing should be listed");
+    fixture
+        .store
+        .delete_version(&db, v1, DeleteMode::Destroy)
+        .unwrap();
+    assert_eq!(
+        listed(),
+        0,
+        "nothing readable remains, so nothing should be listed"
+    );
 }
 
 /// Rotation must rewrite 32-byte wrapped keys and nothing else.
@@ -360,17 +458,27 @@ fn rotation_leaves_every_payload_byte_identical() {
     let report = fixture
         .store
         .rekey_with(&sealed, |binding, key| {
-            key.rewrap(&fixture.master, &successor, 2, binding).map_err(StoreError::from)
+            key.rewrap(&fixture.master, &successor, 2, binding)
+                .map_err(StoreError::from)
         })
         .unwrap();
     assert_eq!(report.versions_rewrapped, 3);
 
     for (index, p) in ["prod/big/cert", "prod/small/pw"].iter().enumerate() {
-        let stored = fixture.store.read_version(&path(p), VersionSelector::Current).unwrap();
-        assert_eq!(stored.sealed.ciphertext, before[index], "{p} was re-encrypted");
+        let stored = fixture
+            .store
+            .read_version(&path(p), VersionSelector::Current)
+            .unwrap();
+        assert_eq!(
+            stored.sealed.ciphertext, before[index],
+            "{p} was re-encrypted"
+        );
 
         let opened = stored.sealed.open(&successor, stored.binding).unwrap();
-        assert!(!opened.expose().is_empty(), "{p} no longer opens under the new key");
+        assert!(
+            !opened.expose().is_empty(),
+            "{p} no longer opens under the new key"
+        );
         assert!(
             stored.sealed.open(&fixture.master, stored.binding).is_err(),
             "{p} still opens under the retired key"

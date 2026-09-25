@@ -48,15 +48,20 @@ pub fn open_bundle(passphrase: &[u8], bundle: &[u8]) -> Result<SecretBytes> {
 
     let format_version = u16::from_le_bytes([bundle[6], bundle[7]]);
     if format_version != FORMAT_VERSION {
-        return Err(Error::SealVersion { found: format_version, supported: FORMAT_VERSION });
+        return Err(Error::SealVersion {
+            found: format_version,
+            supported: FORMAT_VERSION,
+        });
     }
 
     let salt: [u8; kdf::SALT_LEN] =
-        bundle[8..8 + kdf::SALT_LEN].try_into().map_err(|_| Error::Malformed {
-            what: "backup salt",
-            expected: kdf::SALT_LEN,
-            found: bundle.len(),
-        })?;
+        bundle[8..8 + kdf::SALT_LEN]
+            .try_into()
+            .map_err(|_| Error::Malformed {
+                what: "backup salt",
+                expected: kdf::SALT_LEN,
+                found: bundle.len(),
+            })?;
 
     let key = kdf::derive_from_passphrase(passphrase, &salt)?;
     let nonce = Nonce::from_slice(&bundle[8 + kdf::SALT_LEN..HEADER_LEN])?;

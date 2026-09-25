@@ -48,7 +48,11 @@ pub fn rekey_chain(
 
         tx.execute(
             "UPDATE audit SET prev_hash = ?2, entry_hash = ?3 WHERE seq = ?1",
-            params![seq, previous.as_bytes().as_slice(), entry_hash.as_bytes().as_slice()],
+            params![
+                seq,
+                previous.as_bytes().as_slice(),
+                entry_hash.as_bytes().as_slice()
+            ],
         )?;
 
         previous = entry_hash;
@@ -61,11 +65,20 @@ pub fn rekey_chain(
     // An empty chain carries no anchor, matching a store that has never been written to.
     // Writing one for zero entries would leave a tail hash that no entry accounts for.
     if rekeyed > 0 {
-        anchor::store(&tx, new_key, anchor::Anchor { entries: rekeyed, tail_hash: previous })?;
+        anchor::store(
+            &tx,
+            new_key,
+            anchor::Anchor {
+                entries: rekeyed,
+                tail_hash: previous,
+            },
+        )?;
     }
 
     tx.commit()?;
-    Ok(ChainRekeyReport { entries_rekeyed: rekeyed })
+    Ok(ChainRekeyReport {
+        entries_rekeyed: rekeyed,
+    })
 }
 
 #[cfg(test)]
@@ -138,7 +151,10 @@ mod tests {
             rekey_chain(store.connection_mut(), &old, &new),
             Err(AuditError::RefusingToRekeyBrokenChain(_))
         ));
-        assert!(!verify(store.connection(), &new).unwrap().is_valid(), "still broken");
+        assert!(
+            !verify(store.connection(), &new).unwrap().is_valid(),
+            "still broken"
+        );
     }
 
     #[test]
@@ -149,7 +165,10 @@ mod tests {
 
         store
             .connection()
-            .execute("DELETE FROM audit WHERE seq = (SELECT MAX(seq) FROM audit)", [])
+            .execute(
+                "DELETE FROM audit WHERE seq = (SELECT MAX(seq) FROM audit)",
+                [],
+            )
             .unwrap();
 
         assert!(rekey_chain(store.connection_mut(), &old, &new).is_err());
@@ -160,7 +179,12 @@ mod tests {
         let mut store = Store::open_in_memory().unwrap();
         let (old, new) = keys();
 
-        assert_eq!(rekey_chain(store.connection_mut(), &old, &new).unwrap().entries_rekeyed, 0);
+        assert_eq!(
+            rekey_chain(store.connection_mut(), &old, &new)
+                .unwrap()
+                .entries_rekeyed,
+            0
+        );
         assert!(verify(store.connection(), &new).unwrap().is_valid());
     }
 

@@ -76,7 +76,10 @@ impl SealedMasterKey {
 
         let format_version = u16::from_le_bytes([bytes[6], bytes[7]]);
         if format_version != FORMAT_VERSION {
-            return Err(Error::SealVersion { found: format_version, supported: FORMAT_VERSION });
+            return Err(Error::SealVersion {
+                found: format_version,
+                supported: FORMAT_VERSION,
+            });
         }
 
         Ok(Self {
@@ -98,7 +101,12 @@ pub fn seal_master(
     let kek = backend.wrap_key()?;
     let aad = seal_aad(backend.kind(), generation);
     let (nonce, ciphertext) = aead::seal(kek.raw(), &aad, master.raw().expose())?;
-    Ok(SealedMasterKey { kind: backend.kind(), generation, nonce, ciphertext })
+    Ok(SealedMasterKey {
+        kind: backend.kind(),
+        generation,
+        nonce,
+        ciphertext,
+    })
 }
 
 pub fn unseal_master(backend: &dyn Seal, sealed: &SealedMasterKey) -> Result<MasterKey> {
@@ -159,7 +167,9 @@ impl KeyfileSeal {
             found: trimmed.len(),
         })?;
 
-        Ok(Self { material: Key32::from_bytes(bytes) })
+        Ok(Self {
+            material: Key32::from_bytes(bytes),
+        })
     }
 
     /// Fresh keyfile contents for `secretbae init`, ready to write to disk.
@@ -219,8 +229,14 @@ mod tests {
     fn rejects_malformed_keyfiles() {
         assert!(KeyfileSeal::from_hex("").is_err());
         assert!(KeyfileSeal::from_hex("zz").is_err());
-        assert!(KeyfileSeal::from_hex(&"zz".repeat(32)).is_err(), "non-hex of the right length");
-        assert!(KeyfileSeal::from_hex(&"ab".repeat(31)).is_err(), "too short");
+        assert!(
+            KeyfileSeal::from_hex(&"zz".repeat(32)).is_err(),
+            "non-hex of the right length"
+        );
+        assert!(
+            KeyfileSeal::from_hex(&"ab".repeat(31)).is_err(),
+            "too short"
+        );
     }
 
     #[test]

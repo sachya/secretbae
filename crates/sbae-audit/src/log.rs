@@ -13,15 +13,15 @@ use crate::{
 /// An `IMMEDIATE` transaction takes SQLite's write lock before reading the tail, preventing
 /// concurrent writers from seeing the same tail and branching the hash chain. The anchor is
 /// rewritten in that same transaction so a crash can never leave the two disagreeing.
-pub fn append(
-    conn: &mut Connection,
-    audit_key: &Key32,
-    entry: &AuditEntry,
-) -> Result<AuditRecord> {
+pub fn append(conn: &mut Connection, audit_key: &Key32, entry: &AuditEntry) -> Result<AuditRecord> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
     let tail: Option<Vec<u8>> = tx
-        .query_row("SELECT entry_hash FROM audit ORDER BY seq DESC LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT entry_hash FROM audit ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()?;
 
     let prev_hash = match tail {
@@ -58,7 +58,14 @@ pub fn append(
     })?;
     let seq = Seq::new(seq_num);
 
-    anchor::store(&tx, audit_key, Anchor { entries: entries + 1, tail_hash: entry_hash })?;
+    anchor::store(
+        &tx,
+        audit_key,
+        Anchor {
+            entries: entries + 1,
+            tail_hash: entry_hash,
+        },
+    )?;
     tx.commit()?;
 
     Ok(AuditRecord {

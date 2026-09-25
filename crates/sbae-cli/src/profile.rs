@@ -86,8 +86,9 @@ pub fn check_profile_permissions(path: &Path) -> anyhow::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let meta = std::fs::metadata(path)
-            .map_err(|e| anyhow::anyhow!("failed to inspect profile file '{}': {e}", path.display()))?;
+        let meta = std::fs::metadata(path).map_err(|e| {
+            anyhow::anyhow!("failed to inspect profile file '{}': {e}", path.display())
+        })?;
         let mode = meta.permissions().mode();
         validate_profile_mode(mode).map_err(|_| {
             anyhow::anyhow!(
@@ -189,14 +190,26 @@ transform = "screaming_snake"
     #[test]
     fn duplicate_env_var_names_are_refused() {
         let entries = vec![
-            ("DATABASE_URL".to_owned(), SecretPath::new("prod/db1").unwrap()),
-            ("DATABASE_URL".to_owned(), SecretPath::new("prod/db2").unwrap()),
+            (
+                "DATABASE_URL".to_owned(),
+                SecretPath::new("prod/db1").unwrap(),
+            ),
+            (
+                "DATABASE_URL".to_owned(),
+                SecretPath::new("prod/db2").unwrap(),
+            ),
         ];
         assert!(check_no_duplicate_env_names(&entries).is_err());
 
         let distinct = vec![
-            ("DATABASE_URL".to_owned(), SecretPath::new("prod/db1").unwrap()),
-            ("REDIS_URL".to_owned(), SecretPath::new("prod/cache").unwrap()),
+            (
+                "DATABASE_URL".to_owned(),
+                SecretPath::new("prod/db1").unwrap(),
+            ),
+            (
+                "REDIS_URL".to_owned(),
+                SecretPath::new("prod/cache").unwrap(),
+            ),
         ];
         assert!(check_no_duplicate_env_names(&distinct).is_ok());
     }

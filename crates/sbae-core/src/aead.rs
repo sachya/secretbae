@@ -45,7 +45,13 @@ pub fn seal(key: &Key32, aad: &[u8], plaintext: &[u8]) -> Result<(Nonce, Vec<u8>
     let cipher = XChaCha20Poly1305::new(key.expose().into());
     let nonce = Nonce::generate()?;
     let ciphertext = cipher
-        .encrypt(XNonce::from_slice(nonce.as_bytes()), Payload { msg: plaintext, aad })
+        .encrypt(
+            XNonce::from_slice(nonce.as_bytes()),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         .map_err(|_| Error::Decrypt)?;
     Ok((nonce, ciphertext))
 }
@@ -54,7 +60,13 @@ pub fn seal(key: &Key32, aad: &[u8], plaintext: &[u8]) -> Result<(Nonce, Vec<u8>
 pub fn open(key: &Key32, nonce: &Nonce, aad: &[u8], ciphertext: &[u8]) -> Result<SecretBytes> {
     let cipher = XChaCha20Poly1305::new(key.expose().into());
     cipher
-        .decrypt(XNonce::from_slice(nonce.as_bytes()), Payload { msg: ciphertext, aad })
+        .decrypt(
+            XNonce::from_slice(nonce.as_bytes()),
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
         .map(SecretBytes::new)
         .map_err(|_| Error::Decrypt)
 }

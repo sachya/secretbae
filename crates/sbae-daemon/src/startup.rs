@@ -8,9 +8,7 @@ use sbae_core::seal;
 use sbae_store::Store;
 use std::os::unix::net::UnixListener;
 
-use crate::{
-    keyfile, privdrop, server, Config, DaemonError, DaemonState, Result, SharedState,
-};
+use crate::{keyfile, privdrop, server, Config, DaemonError, DaemonState, Result, SharedState};
 
 /// Everything that requires root, done once and never again.
 ///
@@ -30,7 +28,9 @@ pub fn run(config: &Config) -> Result<(UnixListener, SharedState)> {
 
     let store = open_store(&config.store, account)?;
     seed_builtin_policies(&store)?;
-    let sealed = store.sealed_master_key()?.ok_or(DaemonError::NotInitialised)?;
+    let sealed = store
+        .sealed_master_key()?
+        .ok_or(DaemonError::NotInitialised)?;
     let master = seal::unseal_master(&backend, &sealed)?;
 
     let listener = server::bind(&config.socket, config.socket_mode, account)?;
@@ -85,7 +85,9 @@ fn open_store(path: &Path, account: privdrop::Account) -> Result<Store> {
     for suffix in ["", "-wal", "-shm"] {
         let sidecar = path.with_extension(format!(
             "{}{suffix}",
-            path.extension().and_then(std::ffi::OsStr::to_str).unwrap_or("db")
+            path.extension()
+                .and_then(std::ffi::OsStr::to_str)
+                .unwrap_or("db")
         ));
         if sidecar.exists() {
             std::fs::set_permissions(&sidecar, std::fs::Permissions::from_mode(0o600))?;

@@ -74,7 +74,9 @@ pub struct DenyRule {
 
 impl DenyRule {
     fn covers(&self, capability: Capability) -> bool {
-        self.capabilities.as_ref().is_none_or(|set| set.contains(&capability))
+        self.capabilities
+            .as_ref()
+            .is_none_or(|set| set.contains(&capability))
     }
 }
 
@@ -99,7 +101,8 @@ impl Policy {
     }
 
     pub fn to_json(&self) -> Result<String, PolicyError> {
-        serde_json::to_string_pretty(self).map_err(|source| PolicyError::Malformed(source.to_string()))
+        serde_json::to_string_pretty(self)
+            .map_err(|source| PolicyError::Malformed(source.to_string()))
     }
 }
 
@@ -134,9 +137,10 @@ impl Decision {
 /// attaching an extra policy can never widen access past another policy's prohibition.
 #[must_use]
 pub fn evaluate(policies: &[Policy], request: &AccessRequest<'_>) -> Decision {
-    let denied = policies.iter().flat_map(|policy| &policy.deny).any(|rule| {
-        rule.covers(request.capability) && rule.path.matches(request.path)
-    });
+    let denied = policies
+        .iter()
+        .flat_map(|policy| &policy.deny)
+        .any(|rule| rule.covers(request.capability) && rule.path.matches(request.path));
 
     if denied {
         return Decision::Deny;
@@ -148,9 +152,14 @@ pub fn evaluate(policies: &[Policy], request: &AccessRequest<'_>) -> Decision {
         .find(|rule| {
             rule.capabilities.contains(&request.capability)
                 && rule.path.matches(request.path)
-                && rule.require_tags.iter().all(|required| request.tags.contains(required))
+                && rule
+                    .require_tags
+                    .iter()
+                    .all(|required| request.tags.contains(required))
         })
-        .map_or(Decision::Deny, |rule| Decision::Allow { matched: rule.path.as_str().to_owned() })
+        .map_or(Decision::Deny, |rule| Decision::Allow {
+            matched: rule.path.as_str().to_owned(),
+        })
 }
 
 #[cfg(test)]
@@ -174,44 +183,83 @@ mod tests {
     }
 
     fn policy(rules: Vec<Rule>, deny: Vec<DenyRule>) -> Policy {
-        Policy { name: "test".to_owned(), rules, deny }
+        Policy {
+            name: "test".to_owned(),
+            rules,
+            deny,
+        }
     }
 
     fn decide(policies: &[Policy], raw: &str, capability: Capability, tags: &[Tag]) -> bool {
-        evaluate(policies, &AccessRequest { path: &path(raw), capability, tags }).is_allowed()
+        evaluate(
+            policies,
+            &AccessRequest {
+                path: &path(raw),
+                capability,
+                tags,
+            },
+        )
+        .is_allowed()
     }
 
     #[test]
     fn a_grant_applies_only_to_its_paths_and_capabilities() {
-        let policies = [policy(vec![rule("prod/billing/**", &[Capability::Read])], vec![])];
+        let policies = [policy(
+            vec![rule("prod/billing/**", &[Capability::Read])],
+            vec![],
+        )];
 
         assert!(decide(&policies, "prod/billing/db", Capability::Read, &[]));
-        assert!(!decide(&policies, "prod/billing/db", Capability::Write, &[]));
+        assert!(!decide(
+            &policies,
+            "prod/billing/db",
+            Capability::Write,
+            &[]
+        ));
         assert!(!decide(&policies, "prod/search/db", Capability::Read, &[]));
     }
 
     #[test]
     fn nothing_is_granted_by_default() {
         assert!(!decide(&[], "prod/db", Capability::Read, &[]));
-        assert!(!decide(&[policy(vec![], vec![])], "prod/db", Capability::Read, &[]));
+        assert!(!decide(
+            &[policy(vec![], vec![])],
+            "prod/db",
+            Capability::Read,
+            &[]
+        ));
     }
 
     #[test]
     fn deny_overrides_a_grant_in_the_same_policy() {
         let policies = [policy(
             vec![rule("prod/**", &[Capability::Read])],
-            vec![DenyRule { path: PathPattern::new("prod/**/admin/**").unwrap(), capabilities: None }],
+            vec![DenyRule {
+                path: PathPattern::new("prod/**/admin/**").unwrap(),
+                capabilities: None,
+            }],
         )];
 
         assert!(decide(&policies, "prod/billing/db", Capability::Read, &[]));
-        assert!(!decide(&policies, "prod/billing/admin/root", Capability::Read, &[]));
+        assert!(!decide(
+            &policies,
+            "prod/billing/admin/root",
+            Capability::Read,
+            &[]
+        ));
     }
 
     /// Attaching a second policy must never be able to defeat the first one's prohibition.
     #[test]
     fn deny_in_one_policy_overrides_a_grant_in_another() {
         let policies = [
-            policy(vec![], vec![DenyRule { path: PathPattern::new("prod/**").unwrap(), capabilities: None }]),
+            policy(
+                vec![],
+                vec![DenyRule {
+                    path: PathPattern::new("prod/**").unwrap(),
+                    capabilities: None,
+                }],
+            ),
             policy(vec![rule("prod/**", &[Capability::Read])], vec![]),
         ];
 
@@ -235,20 +283,44 @@ mod tests {
     #[test]
     fn require_tags_narrows_a_grant_and_never_widens_one() {
         let policies = [policy(
-            vec![Rule { require_tags: vec![tag("env=prod")], ..rule("**", &[Capability::Read]) }],
+            vec![Rule {
+                require_tags: vec![tag("env=prod")],
+                ..rule("**", &[Capability::Read])
+            }],
             vec![],
         )];
 
-        assert!(decide(&policies, "prod/db", Capability::Read, &[tag("env=prod")]));
-        assert!(!decide(&policies, "prod/db", Capability::Read, &[tag("env=dev")]));
-        assert!(!decide(&policies, "prod/db", Capability::Read, &[]), "a missing tag denies");
+        assert!(decide(
+            &policies,
+            "prod/db",
+            Capability::Read,
+            &[tag("env=prod")]
+        ));
+        assert!(!decide(
+            &policies,
+            "prod/db",
+            Capability::Read,
+            &[tag("env=dev")]
+        ));
+        assert!(
+            !decide(&policies, "prod/db", Capability::Read, &[]),
+            "a missing tag denies"
+        );
 
         // Carrying the tag is not itself a grant: the path still has to match a rule.
         let scoped = [policy(
-            vec![Rule { require_tags: vec![tag("env=prod")], ..rule("prod/**", &[Capability::Read]) }],
+            vec![Rule {
+                require_tags: vec![tag("env=prod")],
+                ..rule("prod/**", &[Capability::Read])
+            }],
             vec![],
         )];
-        assert!(!decide(&scoped, "dev/db", Capability::Read, &[tag("env=prod")]));
+        assert!(!decide(
+            &scoped,
+            "dev/db",
+            Capability::Read,
+            &[tag("env=prod")]
+        ));
     }
 
     #[test]
@@ -261,14 +333,32 @@ mod tests {
             vec![],
         )];
 
-        assert!(decide(&policies, "a", Capability::Read, &[tag("env=prod"), tag("app=billing")]));
-        assert!(!decide(&policies, "a", Capability::Read, &[tag("env=prod")]));
+        assert!(decide(
+            &policies,
+            "a",
+            Capability::Read,
+            &[tag("env=prod"), tag("app=billing")]
+        ));
+        assert!(!decide(
+            &policies,
+            "a",
+            Capability::Read,
+            &[tag("env=prod")]
+        ));
     }
 
     #[test]
     fn admin_is_not_implied_by_any_other_capability() {
         let policies = [policy(
-            vec![rule("**", &[Capability::Read, Capability::Write, Capability::Delete, Capability::List])],
+            vec![rule(
+                "**",
+                &[
+                    Capability::Read,
+                    Capability::Write,
+                    Capability::Delete,
+                    Capability::List,
+                ],
+            )],
             vec![],
         )];
 
@@ -288,14 +378,26 @@ mod tests {
         let parsed = Policy::from_json(document).unwrap();
         assert_eq!(parsed.name, "billing-app");
         assert_eq!(parsed.rules[0].require_tags, vec![tag("env=prod")]);
-        assert_eq!(Policy::from_json(&parsed.to_json().unwrap()).unwrap(), parsed);
+        assert_eq!(
+            Policy::from_json(&parsed.to_json().unwrap()).unwrap(),
+            parsed
+        );
 
         // A typo must fail loudly rather than leave a rule the operator believes is in force.
-        assert!(Policy::from_json(r#"{"name":"x","rules":[{"path":"prod/**","capabilties":["read"]}]}"#).is_err());
+        assert!(Policy::from_json(
+            r#"{"name":"x","rules":[{"path":"prod/**","capabilties":["read"]}]}"#
+        )
+        .is_err());
         assert!(Policy::from_json(r#"{"name":"x","ruels":[]}"#).is_err());
 
-        assert!(Policy::from_json(r#"{"name":"x","rules":[{"path":"prod//db","capabilities":["read"]}]}"#).is_err());
-        assert!(Policy::from_json(r#"{"name":"x","rules":[{"path":"prod/**","capabilities":["reed"]}]}"#).is_err());
+        assert!(Policy::from_json(
+            r#"{"name":"x","rules":[{"path":"prod//db","capabilities":["read"]}]}"#
+        )
+        .is_err());
+        assert!(Policy::from_json(
+            r#"{"name":"x","rules":[{"path":"prod/**","capabilities":["reed"]}]}"#
+        )
+        .is_err());
         assert!(Policy::from_json(r#"{"name":"x","rules":[{"path":"prod/**","capabilities":["read"],"require_tags":["env"]}]}"#).is_err());
     }
 }

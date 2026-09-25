@@ -48,13 +48,19 @@ mod tests {
             ("PATH".to_owned(), "/usr/bin".to_owned()),
             ("USER".to_owned(), "app".to_owned()),
             ("SECRETBAE_TOKEN".to_owned(), "sbae_token_val".to_owned()),
-            ("SECRETBAE_TOKEN_FILE".to_owned(), "/etc/tokens/app.token".to_owned()),
+            (
+                "SECRETBAE_TOKEN_FILE".to_owned(),
+                "/etc/tokens/app.token".to_owned(),
+            ),
             ("LEGACY_APP_TOKEN".to_owned(), "sbae_token_val".to_owned()),
             ("OTHER_KEY".to_owned(), "safe_value".to_owned()),
         ];
 
         let resolved_secrets = vec![
-            ("DATABASE_URL".to_owned(), "postgres://user:pw@host/db".to_owned()),
+            (
+                "DATABASE_URL".to_owned(),
+                "postgres://user:pw@host/db".to_owned(),
+            ),
             ("API_KEY".to_owned(), "secret_api_key".to_owned()),
         ];
 
@@ -74,7 +80,10 @@ mod tests {
         assert_eq!(env_map.get("OTHER_KEY").unwrap(), "safe_value");
 
         // Resolved secrets must be injected
-        assert_eq!(env_map.get("DATABASE_URL").unwrap(), "postgres://user:pw@host/db");
+        assert_eq!(
+            env_map.get("DATABASE_URL").unwrap(),
+            "postgres://user:pw@host/db"
+        );
         assert_eq!(env_map.get("API_KEY").unwrap(), "secret_api_key");
     }
 }

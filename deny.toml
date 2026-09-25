@@ -10,7 +10,7 @@ targets = [
 version = 2
 # Deny known security advisories/vulnerabilities
 vulnerability = "deny"
-unmaintained = "warn"
+unmaintained = "workspace"
 yanked = "warn"
 notice = "warn"
 
@@ -34,6 +34,6 @@ wildcards = "allow"
 
 [sources]
 # Deny crates from unknown package registries or git repositories
-unknown-registries = "deny"
+unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]

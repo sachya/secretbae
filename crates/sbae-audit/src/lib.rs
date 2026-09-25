@@ -24,14 +24,14 @@ mod record;
 mod rekey;
 mod verify;
 
+pub use anchor::Anchor;
 pub use entry::{
     Action, AuditEntry, AuditPath, AuditResult, Detail, PeerPid, PeerUid, Seq, Timestamp,
     TokenPrefix,
 };
 pub use error::{AuditError, Result};
 pub use hash::{compute_entry_hash, EntryHash};
-pub use anchor::Anchor;
 pub use log::append;
-pub use rekey::{rekey_chain, ChainRekeyReport};
 pub use record::AuditRecord;
+pub use rekey::{rekey_chain, ChainRekeyReport};
 pub use verify::{verify, VerificationResult};

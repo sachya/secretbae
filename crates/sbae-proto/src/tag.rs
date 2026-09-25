@@ -23,7 +23,10 @@ impl Tag {
     pub fn new(key: &str, value: &str) -> Result<Self, ProtoError> {
         validate_part("key", key)?;
         validate_part("value", value)?;
-        Ok(Self { key: key.to_owned(), value: value.to_owned() })
+        Ok(Self {
+            key: key.to_owned(),
+            value: value.to_owned(),
+        })
     }
 
     #[must_use]
@@ -42,7 +45,10 @@ fn validate_part(what: &'static str, part: &str) -> Result<(), ProtoError> {
         Some("must not be empty")
     } else if part.len() > MAX_TAG_PART_LEN {
         Some("must be at most 64 characters")
-    } else if !part.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'.')) {
+    } else if !part
+        .bytes()
+        .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'.'))
+    {
         // Same lowercase rule as paths: `env=Prod` and `env=prod` must not be two different
         // tags that read identically to whoever is auditing a policy.
         Some("must contain only [a-z0-9._-]")
@@ -108,7 +114,14 @@ mod tests {
 
     #[test]
     fn rejects_malformed_tags() {
-        for raw in ["env", "=prod", "env=", "env=PROD", "env prod=x", "env=pr od"] {
+        for raw in [
+            "env",
+            "=prod",
+            "env=",
+            "env=PROD",
+            "env prod=x",
+            "env=pr od",
+        ] {
             assert!(raw.parse::<Tag>().is_err(), "should reject {raw:?}");
         }
     }
@@ -228,7 +241,10 @@ mod selector_tests {
         for raw in ["env", "env=prod"] {
             let selector: TagSelector = raw.parse().unwrap();
             assert_eq!(selector.to_string(), raw);
-            assert_eq!(serde_json::from_str::<TagSelector>(&format!("\"{raw}\"")).unwrap(), selector);
+            assert_eq!(
+                serde_json::from_str::<TagSelector>(&format!("\"{raw}\"")).unwrap(),
+                selector
+            );
         }
     }
 

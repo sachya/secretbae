@@ -34,10 +34,12 @@ impl TryFrom<&[u8]> for EntryHash {
     type Error = AuditError;
 
     fn try_from(slice: &[u8]) -> Result<Self> {
-        let bytes: [u8; 32] = slice.try_into().map_err(|_| AuditError::InvalidHashLength {
-            expected: 32,
-            found: slice.len(),
-        })?;
+        let bytes: [u8; 32] = slice
+            .try_into()
+            .map_err(|_| AuditError::InvalidHashLength {
+                expected: 32,
+                found: slice.len(),
+            })?;
         Ok(Self(bytes))
     }
 }

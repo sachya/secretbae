@@ -49,7 +49,10 @@ pub fn resolve_account(name: &str) -> Result<Account> {
         return Err(DaemonError::UnknownUser(name.to_owned()));
     }
 
-    Ok(Account { uid: passwd.pw_uid, gid: passwd.pw_gid })
+    Ok(Account {
+        uid: passwd.pw_uid,
+        gid: passwd.pw_gid,
+    })
 }
 
 /// Disable core dumps and `ptrace` attachment by non-root, and pin memory out of swap.
@@ -61,7 +64,10 @@ pub fn harden_process() -> Result<()> {
     // caller owns. Returns -1 on failure without other side effects.
     let dumpable = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
     if dumpable != 0 {
-        return Err(DaemonError::Harden("PR_SET_DUMPABLE", io::Error::last_os_error()));
+        return Err(DaemonError::Harden(
+            "PR_SET_DUMPABLE",
+            io::Error::last_os_error(),
+        ));
     }
 
     // SAFETY: mlockall takes flags only and touches no caller memory.
@@ -134,7 +140,10 @@ fn verify_dropped(account: Account) -> Result<()> {
 /// The process's `RLIMIT_MEMLOCK` soft limit, or `None` when it is unlimited.
 #[must_use]
 pub fn memlock_limit() -> Option<u64> {
-    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
 
     // SAFETY: getrlimit writes into a valid, owned `rlimit` and reads nothing else.
     if unsafe { libc::getrlimit(libc::RLIMIT_MEMLOCK, &raw mut limit) } != 0 {
@@ -181,7 +190,10 @@ mod tests {
     fn dropping_without_root_is_refused() {
         if current_uid() != 0 {
             assert!(matches!(
-                drop_privileges(Account { uid: 65534, gid: 65534 }),
+                drop_privileges(Account {
+                    uid: 65534,
+                    gid: 65534
+                }),
                 Err(DaemonError::NotRoot)
             ));
         }

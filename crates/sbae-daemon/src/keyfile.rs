@@ -100,7 +100,9 @@ pub fn create(path: &Path) -> Result<()> {
         .mode(0o400)
         .open(path)?;
 
-    let result = file.write_all(material.as_bytes()).and_then(|()| file.sync_all());
+    let result = file
+        .write_all(material.as_bytes())
+        .and_then(|()| file.sync_all());
     material.zeroize();
     result?;
 
@@ -150,7 +152,10 @@ mod tests {
 
         create(&path).unwrap();
         assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o400);
-        assert!(create(&path).is_err(), "overwriting would orphan every stored secret");
+        assert!(
+            create(&path).is_err(),
+            "overwriting would orphan every stored secret"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

@@ -69,12 +69,12 @@ pub fn check_token_file_permissions(path: &Path) -> anyhow::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let meta = std::fs::metadata(path)
-            .map_err(|e| anyhow::anyhow!("failed to inspect token file '{}': {e}", path.display()))?;
-        let mode = meta.permissions().mode();
-        validate_file_mode(mode).map_err(|source| {
-            anyhow::anyhow!("token file '{}': {source}", path.display())
+        let meta = std::fs::metadata(path).map_err(|e| {
+            anyhow::anyhow!("failed to inspect token file '{}': {e}", path.display())
         })?;
+        let mode = meta.permissions().mode();
+        validate_file_mode(mode)
+            .map_err(|source| anyhow::anyhow!("token file '{}': {source}", path.display()))?;
     }
 
     #[cfg(not(unix))]
@@ -162,7 +162,10 @@ pub fn resolve_token(
     let env_tok = std::env::var("SECRETBAE_TOKEN").ok();
 
     let home_file = std::env::var_os("HOME").map(|h| {
-        let p = PathBuf::from(h).join(".config").join("secretbae").join("token");
+        let p = PathBuf::from(h)
+            .join(".config")
+            .join("secretbae")
+            .join("token");
         let exists = p.is_file();
         (p, exists)
     });
@@ -188,8 +191,9 @@ pub fn parse_bind_uid(raw: &str) -> anyhow::Result<u32> {
 
     #[cfg(unix)]
     {
-        let passwd = std::fs::read_to_string("/etc/passwd")
-            .map_err(|e| anyhow::anyhow!("failed to read /etc/passwd to resolve user '{raw}': {e}"))?;
+        let passwd = std::fs::read_to_string("/etc/passwd").map_err(|e| {
+            anyhow::anyhow!("failed to read /etc/passwd to resolve user '{raw}': {e}")
+        })?;
         for line in passwd.lines() {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() >= 3 && parts[0] == raw {
@@ -220,7 +224,10 @@ mod tests {
         // The shipped deployment: root owns the token, the service group reads it.
         assert!(validate_file_mode(0o440).is_ok());
         assert!(validate_file_mode(0o640).is_ok());
-        assert!(validate_file_mode(0o460).is_err(), "group write allows swapping the token");
+        assert!(
+            validate_file_mode(0o460).is_err(),
+            "group write allows swapping the token"
+        );
 
         // Group readable: rejected
 
@@ -293,26 +300,14 @@ mod tests {
         assert_eq!(resolved.as_str(), "token_env");
 
         // 5. ~/.config/secretbae/token used when nothing else set
-        let resolved = resolve_token_with_sources(
-            None,
-            None,
-            None,
-            None,
-            Some((home_path, true)),
-            reader,
-        )
-        .unwrap();
+        let resolved =
+            resolve_token_with_sources(None, None, None, None, Some((home_path, true)), reader)
+                .unwrap();
         assert_eq!(resolved.as_str(), "token_home");
 
         // 6. Error returned when no sources exist
-        let err = resolve_token_with_sources(
-            None,
-            None,
-            None,
-            None,
-            Some((home_path, false)),
-            reader,
-        );
+        let err =
+            resolve_token_with_sources(None, None, None, None, Some((home_path, false)), reader);
         assert!(err.is_err());
     }
 
@@ -346,7 +341,10 @@ mod tests {
 pub fn resolve_policies(explicit: Vec<String>, unrestricted: bool) -> anyhow::Result<Vec<String>> {
     let mut policies = explicit;
 
-    if unrestricted && !policies.iter().any(|p| p == sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY)
+    if unrestricted
+        && !policies
+            .iter()
+            .any(|p| p == sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY)
     {
         policies.push(sbae_proto::api::BUILTIN_UNRESTRICTED_POLICY.to_owned());
     }
@@ -366,7 +364,10 @@ mod resolve_policies_tests {
 
     #[test]
     fn unrestricted_alone_attaches_the_builtin_policy() {
-        assert_eq!(resolve_policies(vec![], true).unwrap(), vec!["unrestricted"]);
+        assert_eq!(
+            resolve_policies(vec![], true).unwrap(),
+            vec!["unrestricted"]
+        );
     }
 
     #[test]

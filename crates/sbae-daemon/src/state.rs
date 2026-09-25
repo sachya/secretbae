@@ -17,7 +17,11 @@ pub struct KeyMaterial {
 
 impl KeyMaterial {
     fn new(master: MasterKey, generation: u32) -> crate::Result<Self> {
-        Ok(Self { audit_key: master.audit_key()?, master, generation })
+        Ok(Self {
+            audit_key: master.audit_key()?,
+            master,
+            generation,
+        })
     }
 }
 
@@ -64,11 +68,15 @@ impl DaemonState {
     /// correct here because SQLite rolls back an uncommitted transaction when its statement
     /// is dropped, so the database is consistent even though the handler was not.
     pub fn store(&self) -> MutexGuard<'_, Store> {
-        self.store.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.store
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub fn keys(&self) -> RwLockReadGuard<'_, KeyMaterial> {
-        self.keys.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.keys
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Swap in a rotated master key.
@@ -76,7 +84,10 @@ impl DaemonState {
     /// Called only after the store has committed the rewrapped data keys, so a failure to
     /// commit leaves the daemon still holding the key that matches what is on disk.
     pub fn adopt_rotated_key(&self, master: MasterKey, generation: u32) -> crate::Result<()> {
-        let mut keys = self.keys.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut keys = self
+            .keys
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *keys = KeyMaterial::new(master, generation)?;
         Ok(())
     }

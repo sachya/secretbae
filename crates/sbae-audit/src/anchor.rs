@@ -76,14 +76,18 @@ pub fn store(tx: &rusqlite::Transaction<'_>, audit_key: &Key32, anchor: Anchor) 
 /// The stored anchor, or `None` if the log has never been written to.
 pub fn load(conn: &Connection, audit_key: &Key32) -> Result<Option<Anchor>> {
     let stored: Option<Vec<u8>> = conn
-        .query_row("SELECT value FROM meta WHERE key = ?1", [META_KEY], |row| row.get(0))
+        .query_row("SELECT value FROM meta WHERE key = ?1", [META_KEY], |row| {
+            row.get(0)
+        })
         .optional()?;
 
     match stored {
         None => Ok(None),
         Some(encoded) => Anchor::decode(&encoded, audit_key)
             .map(Some)
-            .ok_or(AuditError::Corrupt { what: "audit anchor failed authentication" }),
+            .ok_or(AuditError::Corrupt {
+                what: "audit anchor failed authentication",
+            }),
     }
 }
 
@@ -96,7 +100,10 @@ mod tests {
     }
 
     fn anchor() -> Anchor {
-        Anchor { entries: 7, tail_hash: EntryHash::from_bytes([9u8; 32]) }
+        Anchor {
+            entries: 7,
+            tail_hash: EntryHash::from_bytes([9u8; 32]),
+        }
     }
 
     #[test]

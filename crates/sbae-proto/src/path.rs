@@ -153,7 +153,14 @@ mod tests {
 
     #[test]
     fn rejects_traversal_and_empty_segments() {
-        for raw in ["../etc/passwd", "prod/../dev/db", "prod//db", "/prod/db", "prod/db/", "."] {
+        for raw in [
+            "../etc/passwd",
+            "prod/../dev/db",
+            "prod//db",
+            "/prod/db",
+            "prod/db/",
+            ".",
+        ] {
             assert!(SecretPath::new(raw).is_err(), "should reject {raw}");
         }
     }
@@ -166,7 +173,13 @@ mod tests {
 
     #[test]
     fn rejects_control_characters_and_separators() {
-        for raw in ["prod/db\0", "prod/db\n", "prod/db url", "prod/db:x", "prod/../*"] {
+        for raw in [
+            "prod/db\0",
+            "prod/db\n",
+            "prod/db url",
+            "prod/db:x",
+            "prod/../*",
+        ] {
             assert!(SecretPath::new(raw).is_err(), "should reject {raw:?}");
         }
     }
@@ -193,7 +206,10 @@ mod tests {
 
     #[test]
     fn leaf_returns_the_final_segment() {
-        assert_eq!(SecretPath::new("prod/billing/db_url").unwrap().leaf(), "db_url");
+        assert_eq!(
+            SecretPath::new("prod/billing/db_url").unwrap().leaf(),
+            "db_url"
+        );
         assert_eq!(SecretPath::new("solo").unwrap().leaf(), "solo");
     }
 

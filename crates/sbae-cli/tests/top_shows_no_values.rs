@@ -45,6 +45,9 @@ fn the_browser_renders_the_metadata_columns_it_promises() {
         .1;
 
     for column in ["KEY", "VERSIONS", "CURRENT", "TAGS", "UPDATED"] {
-        assert!(render.contains(column), "the table no longer renders a {column} column");
+        assert!(
+            render.contains(column),
+            "the table no longer renders a {column} column"
+        );
     }
 }

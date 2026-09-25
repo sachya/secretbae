@@ -17,10 +17,10 @@ use std::io::Read;
 
 use clap::{CommandFactory, Parser};
 use sbae_proto::api::{
-    route, Ack, DeleteRequest, ListRequest, ListResponse, NameRequest, PathRequest, PolicyListResponse,
-    PolicyPutRequest, ReadRequest, ReadResponse, RollbackRequest, StatusResponse, TagRemoveRequest, TagRequest,
-    TokenCreateRequest, TokenCreateResponse, TokenListResponse, TokenRevokeRequest, VersionsResponse,
-    WriteRequest, WriteResponse,
+    route, Ack, DeleteRequest, ListRequest, ListResponse, NameRequest, PathRequest,
+    PolicyListResponse, PolicyPutRequest, ReadRequest, ReadResponse, RollbackRequest,
+    StatusResponse, TagRemoveRequest, TagRequest, TokenCreateRequest, TokenCreateResponse,
+    TokenListResponse, TokenRevokeRequest, VersionsResponse, WriteRequest, WriteResponse,
 };
 
 use crate::cli::{AuditAction, Cli, Command, PolicyAction, TagAction, TokenAction};
@@ -93,12 +93,8 @@ fn dispatch_client_command(client: &Client, command: Command, json: bool) -> any
         Command::Policy { action } => dispatch_policy_command(client, action, json),
         Command::Audit { action } => dispatch_audit_command(client, action, json),
         Command::Rekey { yes } => admin::rekey(client, yes, json),
-        Command::Backup { output, passphrase } => {
-            admin::backup(client, &output, passphrase, json)
-        }
-        Command::Restore { input, passphrase } => {
-            admin::restore(client, &input, passphrase, json)
-        }
+        Command::Backup { output, passphrase } => admin::backup(client, &output, passphrase, json),
+        Command::Restore { input, passphrase } => admin::restore(client, &input, passphrase, json),
         Command::Exec { .. } | Command::Completions { .. } | Command::Top { .. } => unreachable!(),
     }
 }
@@ -120,13 +116,16 @@ fn dispatch_secret_command(client: &Client, command: Command, json: bool) -> any
         } => {
             let raw_bytes = if stdin {
                 let mut buf = Vec::new();
-                std::io::stdin()
-                    .read_to_end(&mut buf)
-                    .map_err(|e| anyhow::anyhow!("failed to read secret payload from stdin: {e}"))?;
+                std::io::stdin().read_to_end(&mut buf).map_err(|e| {
+                    anyhow::anyhow!("failed to read secret payload from stdin: {e}")
+                })?;
                 buf
             } else if let Some(path) = file {
                 std::fs::read(&path).map_err(|e| {
-                    anyhow::anyhow!("failed to read secret payload from '{}': {e}", path.display())
+                    anyhow::anyhow!(
+                        "failed to read secret payload from '{}': {e}",
+                        path.display()
+                    )
                 })?
             } else if let Some(val) = value {
                 val.into_bytes()
@@ -184,8 +183,8 @@ fn dispatch_secret_command(client: &Client, command: Command, json: bool) -> any
                 println!("{}", serde_json::to_string_pretty(&ack)?);
             } else {
                 let action = if destroy { "Destroyed" } else { "Deleted" };
-                let ver_str = version
-                    .map_or_else(|| "all versions".to_owned(), |v| format!("version {v}"));
+                let ver_str =
+                    version.map_or_else(|| "all versions".to_owned(), |v| format!("version {v}"));
                 println!("{action} {} ({ver_str})", req.path);
             }
             Ok(())
@@ -254,7 +253,10 @@ fn dispatch_token_command(client: &Client, action: TokenAction, json: bool) -> a
             let policies = token::resolve_policies(policies, unrestricted)?;
             let ttl_seconds = ttl
                 .as_deref()
-                .map(|s| s.parse::<duration::TtlSeconds>().map(duration::TtlSeconds::get))
+                .map(|s| {
+                    s.parse::<duration::TtlSeconds>()
+                        .map(duration::TtlSeconds::get)
+                })
                 .transpose()?;
             let bound = bind_uid.as_deref().map(token::parse_bind_uid).transpose()?;
 
@@ -296,7 +298,11 @@ fn dispatch_token_command(client: &Client, action: TokenAction, json: bool) -> a
     }
 }
 
-fn dispatch_policy_command(client: &Client, action: PolicyAction, json: bool) -> anyhow::Result<()> {
+fn dispatch_policy_command(
+    client: &Client,
+    action: PolicyAction,
+    json: bool,
+) -> anyhow::Result<()> {
     match action {
         PolicyAction::Put { file } => {
             let document = std::fs::read_to_string(&file).map_err(|e| {

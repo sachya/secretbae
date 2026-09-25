@@ -82,8 +82,9 @@ impl Store {
 
     /// Every distinct tag in the store, for shell completion and `tag ls` with no path.
     pub fn all_distinct_tags(&self) -> Result<Vec<Tag>> {
-        let mut statement =
-            self.conn.prepare("SELECT key, value FROM tags ORDER BY key, value")?;
+        let mut statement = self
+            .conn
+            .prepare("SELECT key, value FROM tags ORDER BY key, value")?;
 
         let rows = statement.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -108,7 +109,11 @@ impl Store {
     pub fn exists(&self, path: &SecretPath) -> Result<bool> {
         Ok(self
             .conn
-            .query_row("SELECT 1 FROM secrets WHERE path = ?1", [path.as_str()], |_| Ok(()))
+            .query_row(
+                "SELECT 1 FROM secrets WHERE path = ?1",
+                [path.as_str()],
+                |_| Ok(()),
+            )
             .optional()?
             .is_some())
     }

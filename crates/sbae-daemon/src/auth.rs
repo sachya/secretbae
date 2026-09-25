@@ -60,7 +60,9 @@ pub fn extract_token(headers: &http::HeaderMap) -> core::result::Result<Presente
         .and_then(|value| value.to_str().ok())
         .ok_or(Denied::MissingToken)?;
 
-    let token = raw.strip_prefix(api::BEARER_PREFIX).ok_or(Denied::MalformedToken)?;
+    let token = raw
+        .strip_prefix(api::BEARER_PREFIX)
+        .ok_or(Denied::MalformedToken)?;
     PresentedToken::parse(token).map_err(|_| Denied::MalformedToken)
 }
 
@@ -109,7 +111,9 @@ fn check(
     let token_id = authenticate(&record, &presented, peer, OffsetDateTime::now_utc())
         .map_err(Denied::Authentication)?;
 
-    let policies = store.policies_for_token(token_id).map_err(|_| Denied::NoGrant)?;
+    let policies = store
+        .policies_for_token(token_id)
+        .map_err(|_| Denied::NoGrant)?;
 
     // Tags are read from the store rather than taken from the request, so a caller cannot
     // satisfy a `require_tags` rule by claiming a tag the secret does not carry.
@@ -120,13 +124,27 @@ fn check(
 
     let granted = requested.path.map_or_else(
         || grants_without_path(&policies, capability),
-        |path| evaluate(&policies, &AccessRequest { path, capability, tags: &tags }).is_allowed(),
+        |path| {
+            evaluate(
+                &policies,
+                &AccessRequest {
+                    path,
+                    capability,
+                    tags: &tags,
+                },
+            )
+            .is_allowed()
+        },
     );
 
     drop(store);
 
     if granted {
-        Ok(Authenticated { token_id, prefix: record.prefix, peer })
+        Ok(Authenticated {
+            token_id,
+            prefix: record.prefix,
+            peer,
+        })
     } else {
         Err(Denied::NoGrant)
     }
@@ -184,7 +202,9 @@ pub fn record(
     let mut entry = AuditEntry::new(action, result)
         .with_token_prefix(authenticated.prefix.as_str())
         .with_peer_uid(sbae_audit::PeerUid::new(authenticated.peer.uid))
-        .with_peer_pid(sbae_audit::PeerPid::new(authenticated.peer.pid.unsigned_abs()));
+        .with_peer_pid(sbae_audit::PeerPid::new(
+            authenticated.peer.pid.unsigned_abs(),
+        ));
 
     if let Some(path) = path {
         entry = entry.with_path(path.clone());

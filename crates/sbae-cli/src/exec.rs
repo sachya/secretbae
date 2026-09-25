@@ -69,7 +69,9 @@ pub fn resolve_profile(
     }
 
     // Single batched POST to RESOLVE
-    let resolve_req = ResolveRequest { paths: unique_paths };
+    let resolve_req = ResolveRequest {
+        paths: unique_paths,
+    };
     let resolve_resp: ResolveResponse = client.post(route::RESOLVE, &resolve_req)?;
 
     let mut resolved_map: HashMap<SecretPath, (Version, String)> = HashMap::new();
@@ -121,11 +123,13 @@ pub fn run_exec(
     let profile_path = profile::resolve_profile_path(profile_arg);
     profile::check_profile_permissions(&profile_path)?;
 
-    let profile_str = std::fs::read_to_string(&profile_path).map_err(|e| {
-        anyhow::anyhow!("failed to read profile '{}': {e}", profile_path.display())
-    })?;
+    let profile_str = std::fs::read_to_string(&profile_path)
+        .map_err(|e| anyhow::anyhow!("failed to read profile '{}': {e}", profile_path.display()))?;
     let prof: profile::Profile = toml::from_str(&profile_str).map_err(|e| {
-        anyhow::anyhow!("failed to parse profile TOML '{}': {e}", profile_path.display())
+        anyhow::anyhow!(
+            "failed to parse profile TOML '{}': {e}",
+            profile_path.display()
+        )
     })?;
 
     let token = token::resolve_token(cli_token_file, prof.token_file.as_deref())?;

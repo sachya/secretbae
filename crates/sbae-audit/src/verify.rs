@@ -25,10 +25,7 @@ pub enum VerificationResult {
         computed_hash: EntryHash,
     },
     /// Sequence numbers have a gap, indicating row deletion or table truncation.
-    Gap {
-        expected: Seq,
-        found: Seq,
-    },
+    Gap { expected: Seq, found: Seq },
     /// Entries were removed from the end of the chain. Undetectable by the links alone --
     /// a shortened chain still verifies -- so this is caught by the authenticated anchor.
     Truncated {
@@ -44,10 +41,7 @@ pub enum VerificationResult {
         found_prev: EntryHash,
     },
     /// A row's data contains corrupt or unparseable columns.
-    Corrupt {
-        seq: Seq,
-        what: &'static str,
-    },
+    Corrupt { seq: Seq, what: &'static str },
 }
 
 impl VerificationResult {
@@ -247,8 +241,16 @@ pub fn verify(conn: &Connection, audit_key: &Key32) -> Result<VerificationResult
 
     while let Some(row) = rows.next()? {
         let validation = parse_and_validate_row(row, expected_seq)?;
-        let RowValidation::Valid { seq, prev_hash, entry_hash, entry } = validation else {
-            let RowValidation::Corrupt { seq, what } = validation else { unreachable!() };
+        let RowValidation::Valid {
+            seq,
+            prev_hash,
+            entry_hash,
+            entry,
+        } = validation
+        else {
+            let RowValidation::Corrupt { seq, what } = validation else {
+                unreachable!()
+            };
             return Ok(VerificationResult::Corrupt { seq, what });
         };
 
@@ -284,7 +286,10 @@ pub fn verify(conn: &Connection, audit_key: &Key32) -> Result<VerificationResult
     let tail_hash = (count > 0).then_some(expected_prev_hash);
 
     match crate::anchor::load(conn, audit_key)? {
-        None if count == 0 => Ok(VerificationResult::Valid { entries_verified: 0, tail_hash }),
+        None if count == 0 => Ok(VerificationResult::Valid {
+            entries_verified: 0,
+            tail_hash,
+        }),
         // A chain with entries but no anchor means the anchor row was deleted.
         None => Ok(VerificationResult::AnchorInvalid),
         Some(anchor) if anchor.entries > count => Ok(VerificationResult::Truncated {
@@ -294,6 +299,9 @@ pub fn verify(conn: &Connection, audit_key: &Key32) -> Result<VerificationResult
         Some(anchor) if anchor.entries != count || Some(anchor.tail_hash) != tail_hash => {
             Ok(VerificationResult::AnchorInvalid)
         }
-        Some(_) => Ok(VerificationResult::Valid { entries_verified: count, tail_hash }),
+        Some(_) => Ok(VerificationResult::Valid {
+            entries_verified: count,
+            tail_hash,
+        }),
     }
 }

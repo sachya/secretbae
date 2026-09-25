@@ -40,7 +40,15 @@ impl Store {
     /// Fails if any named policy is absent, rather than creating a token with fewer grants
     /// than the operator asked for -- a token that silently grants less is a debugging trap.
     pub fn create_token(&mut self, token: &NewToken<'_>) -> Result<()> {
-        let NewToken { id, prefix, hash, name, bound_uid, expires_at, policies } = *token;
+        let NewToken {
+            id,
+            prefix,
+            hash,
+            name,
+            bound_uid,
+            expires_at,
+            policies,
+        } = *token;
         let tx = self.conn.transaction()?;
 
         tx.execute(
@@ -116,10 +124,12 @@ impl Store {
               ORDER BY p.name",
         )?;
 
-        let rows =
-            statement.query_map([id.as_uuid().as_bytes().as_slice()], |row| row.get::<_, String>(0))?;
+        let rows = statement.query_map([id.as_uuid().as_bytes().as_slice()], |row| {
+            row.get::<_, String>(0)
+        })?;
 
-        rows.map(|document| Ok(Policy::from_json(&document?)?)).collect()
+        rows.map(|document| Ok(Policy::from_json(&document?)?))
+            .collect()
     }
 
     /// Record that a token was used. Best-effort: a failure here must not fail the request
@@ -157,8 +167,9 @@ impl Store {
         prefixes
             .into_iter()
             .map(|(prefix, created_at, last_used_at)| {
-                let prefix = LookupPrefix::parse(&prefix)
-                    .map_err(|_| StoreError::Corrupt { what: "token prefix" })?;
+                let prefix = LookupPrefix::parse(&prefix).map_err(|_| StoreError::Corrupt {
+                    what: "token prefix",
+                })?;
                 let record = self.token_by_prefix(&prefix)?.ok_or(StoreError::NotFound)?;
                 Ok(TokenSummary {
                     policies: self.policy_names_for_token(record.id)?,
@@ -176,8 +187,7 @@ impl Store {
               WHERE tp.token_id = ?1 ORDER BY p.name",
         )?;
 
-        let rows =
-            statement.query_map([id.as_uuid().as_bytes().as_slice()], |row| row.get(0))?;
+        let rows = statement.query_map([id.as_uuid().as_bytes().as_slice()], |row| row.get(0))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
@@ -211,20 +221,27 @@ impl Store {
 
     /// Every policy document, for inclusion in a backup bundle.
     pub fn all_policy_documents(&self) -> Result<Vec<String>> {
-        let mut statement =
-            self.conn.prepare("SELECT document FROM policies ORDER BY name")?;
+        let mut statement = self
+            .conn
+            .prepare("SELECT document FROM policies ORDER BY name")?;
         let rows = statement.query_map([], |row| row.get(0))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn list_policy_names(&self) -> Result<Vec<String>> {
-        let mut statement = self.conn.prepare("SELECT name FROM policies ORDER BY name")?;
+        let mut statement = self
+            .conn
+            .prepare("SELECT name FROM policies ORDER BY name")?;
         let rows = statement.query_map([], |row| row.get(0))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn delete_policy(&self, name: &str) -> Result<()> {
-        if self.conn.execute("DELETE FROM policies WHERE name = ?1", [name])? == 0 {
+        if self
+            .conn
+            .execute("DELETE FROM policies WHERE name = ?1", [name])?
+            == 0
+        {
             return Err(StoreError::NotFound);
         }
         Ok(())
@@ -240,6 +257,8 @@ impl Store {
 }
 
 fn decode_uuid(raw: &[u8]) -> Result<Uuid> {
-    let bytes: [u8; 16] = raw.try_into().map_err(|_| StoreError::Corrupt { what: "token id" })?;
+    let bytes: [u8; 16] = raw
+        .try_into()
+        .map_err(|_| StoreError::Corrupt { what: "token id" })?;
     Ok(Uuid::from_bytes(bytes))
 }

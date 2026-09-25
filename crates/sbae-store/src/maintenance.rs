@@ -12,9 +12,7 @@ use sbae_core::{Nonce, SealedMasterKey, SealedVersion, VersionBinding, WrappedKe
 use sbae_proto::{SecretPath, Tag, Version, VersionState};
 use uuid::Uuid;
 
-use crate::{
-    store::timestamp, ExportedSecret, ExportedVersion, Result, Store, StoreError,
-};
+use crate::{store::timestamp, ExportedSecret, ExportedVersion, Result, Store, StoreError};
 
 /// One `secret_versions` row as read for rotation, before its nonce is parsed.
 ///
@@ -54,7 +52,9 @@ impl Store {
     where
         F: FnMut(VersionBinding, &mut WrappedKey) -> Result<()>,
     {
-        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let pending: Vec<RewrapRow> = {
             let mut statement = tx.prepare(
@@ -119,7 +119,9 @@ impl Store {
             .prepare("SELECT id, path, max_versions, current_version FROM secrets ORDER BY path")?;
 
         let secrets: Vec<(Vec<u8>, String, u32, Option<u32>)> = statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))?
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
             .collect::<rusqlite::Result<_>>()?;
 
         secrets
@@ -208,7 +210,9 @@ impl Store {
             return Err(StoreError::AlreadyExists);
         }
 
-        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let created = secret
             .versions
             .first()
@@ -257,6 +261,8 @@ impl Store {
 }
 
 fn decode_uuid(raw: &[u8]) -> Result<Uuid> {
-    let bytes: [u8; 16] = raw.try_into().map_err(|_| StoreError::Corrupt { what: "secret id" })?;
+    let bytes: [u8; 16] = raw
+        .try_into()
+        .map_err(|_| StoreError::Corrupt { what: "secret id" })?;
     Ok(Uuid::from_bytes(bytes))
 }

@@ -80,8 +80,14 @@ mod tests {
     #[test]
     fn single_star_matches_exactly_one_segment() {
         assert!(matches("prod/*/db", "prod/billing/db"));
-        assert!(!matches("prod/*/db", "prod/db"), "* must not match zero segments");
-        assert!(!matches("prod/*/db", "prod/a/b/db"), "* must not match two segments");
+        assert!(
+            !matches("prod/*/db", "prod/db"),
+            "* must not match zero segments"
+        );
+        assert!(
+            !matches("prod/*/db", "prod/a/b/db"),
+            "* must not match two segments"
+        );
         assert!(!matches("prod/*", "prod/billing/db"));
     }
 
@@ -107,7 +113,10 @@ mod tests {
     #[test]
     fn repeated_double_stars_terminate_quickly() {
         let pattern = "**/".repeat(12) + "target";
-        let path = (0..15).map(|n| format!("s{n}")).collect::<Vec<_>>().join("/");
+        let path = (0..15)
+            .map(|n| format!("s{n}"))
+            .collect::<Vec<_>>()
+            .join("/");
 
         assert!(!matches(&pattern, &path));
         assert!(matches(&pattern, &format!("{path}/target")));
@@ -122,7 +131,13 @@ mod tests {
         assert!(!is_valid_pattern(""));
         assert!(!is_valid_pattern("prod//db"), "empty segment");
         assert!(!is_valid_pattern("prod/../db"));
-        assert!(!is_valid_pattern("prod/DB"), "uppercase cannot match a lowercase path");
-        assert!(!is_valid_pattern("prod/bil*ing"), "partial-segment globs are not supported");
+        assert!(
+            !is_valid_pattern("prod/DB"),
+            "uppercase cannot match a lowercase path"
+        );
+        assert!(
+            !is_valid_pattern("prod/bil*ing"),
+            "partial-segment globs are not supported"
+        );
     }
 }

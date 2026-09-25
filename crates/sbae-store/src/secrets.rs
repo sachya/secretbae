@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     store::{now, timestamp},
-    DeleteMode, ListFilter, Result, SecretSummary, StoredVersion, Store, StoreError,
-    VersionInfo, VersionSelector, WriteMeta,
+    DeleteMode, ListFilter, Result, SecretSummary, Store, StoreError, StoredVersion, VersionInfo,
+    VersionSelector, WriteMeta,
 };
 
 /// Versions retained per secret before the oldest are destroyed on write.
@@ -66,7 +66,11 @@ impl WriteSlot<'_> {
 
         self.tx.execute(
             "UPDATE secrets SET current_version = ?2, updated_at = ?3 WHERE id = ?1",
-            params![self.secret_id.as_bytes().as_slice(), self.version.get(), timestamp],
+            params![
+                self.secret_id.as_bytes().as_slice(),
+                self.version.get(),
+                timestamp
+            ],
         )?;
 
         prune(&self.tx, self.secret_id, self.version, self.max_versions)?;
@@ -99,7 +103,9 @@ impl Store {
     pub fn begin_write(&mut self, path: &SecretPath) -> Result<WriteSlot<'_>> {
         // IMMEDIATE takes the write lock up front, so the version number this reserves cannot
         // be taken by a racing writer between the read and the insert.
-        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let existing: Option<(Vec<u8>, u32)> = tx
             .query_row(
@@ -118,7 +124,12 @@ impl Store {
                 "INSERT INTO secrets (id, path, current_version, max_versions,
                                       created_at, updated_at)
                  VALUES (?1, ?2, NULL, ?3, ?4, ?4)",
-                params![id.as_bytes().as_slice(), path.as_str(), DEFAULT_MAX_VERSIONS, timestamp],
+                params![
+                    id.as_bytes().as_slice(),
+                    path.as_str(),
+                    DEFAULT_MAX_VERSIONS,
+                    timestamp
+                ],
             )?;
             (id, DEFAULT_MAX_VERSIONS)
         };
@@ -249,9 +260,10 @@ impl Store {
             }
         };
 
-        let changed = self
-            .conn
-            .execute(statement, params![secret_id.as_bytes().as_slice(), version.get()])?;
+        let changed = self.conn.execute(
+            statement,
+            params![secret_id.as_bytes().as_slice(), version.get()],
+        )?;
 
         if changed == 0 {
             return Err(StoreError::NotFound);
@@ -288,7 +300,10 @@ impl Store {
             // legal path character, so LIKE would silently over-match. Appending `/` is what
             // keeps `prod/billing` from matching `prod/billing-admin`.
             let n = bound.len() + 1;
-            let _ = write!(sql, " AND (path = ?{n} OR substr(path, 1, length(?{n}) + 1) = ?{n} || '/')");
+            let _ = write!(
+                sql,
+                " AND (path = ?{n} OR substr(path, 1, length(?{n}) + 1) = ?{n} || '/')"
+            );
             bound.push(Box::new(prefix.trim_end_matches('/').to_owned()));
         }
 
@@ -362,7 +377,11 @@ impl Store {
     pub fn secret_id(&self, path: &SecretPath) -> Result<Uuid> {
         let raw: Vec<u8> = self
             .conn
-            .query_row("SELECT id FROM secrets WHERE path = ?1", [path.as_str()], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM secrets WHERE path = ?1",
+                [path.as_str()],
+                |row| row.get(0),
+            )
             .optional()?
             .ok_or(StoreError::NotFound)?;
         decode_uuid(&raw)
@@ -376,13 +395,20 @@ impl Store {
         )?;
 
         let rows = statement.query_map([], |row| {
-            Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            Ok((
+                row.get::<_, Vec<u8>>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
         })?;
 
         let mut grouped: HashMap<Uuid, Vec<Tag>> = HashMap::new();
         for row in rows {
             let (id, key, value) = row?;
-            grouped.entry(decode_uuid(&id)?).or_default().push(Tag::new(&key, &value)?);
+            grouped
+                .entry(decode_uuid(&id)?)
+                .or_default()
+                .push(Tag::new(&key, &value)?);
         }
         Ok(grouped)
     }
@@ -415,7 +441,9 @@ fn build_stored_version(
         return Err(StoreError::NotFound);
     }
 
-    let missing = || StoreError::Corrupt { what: "secret version" };
+    let missing = || StoreError::Corrupt {
+        what: "secret version",
+    };
     Ok(StoredVersion {
         binding: VersionBinding::new(secret_id, version.get()),
         sealed: SealedVersion {
@@ -438,7 +466,8 @@ fn build_stored_version(
 }
 
 fn decode_uuid(raw: &[u8]) -> Result<Uuid> {
-    let bytes: [u8; 16] =
-        raw.try_into().map_err(|_| StoreError::Corrupt { what: "secret id" })?;
+    let bytes: [u8; 16] = raw
+        .try_into()
+        .map_err(|_| StoreError::Corrupt { what: "secret id" })?;
     Ok(Uuid::from_bytes(bytes))
 }

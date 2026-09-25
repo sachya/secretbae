@@ -70,7 +70,11 @@ pub enum Command {
         #[arg(long, help = "Specific version to read (defaults to current version)")]
         version: Option<Version>,
 
-        #[arg(long, conflicts_with = "json", help = "Write raw decrypted payload to stdout with no trailing newline")]
+        #[arg(
+            long,
+            conflicts_with = "json",
+            help = "Write raw decrypted payload to stdout with no trailing newline"
+        )]
         raw: bool,
     },
 
@@ -106,7 +110,10 @@ pub enum Command {
         #[arg(long, help = "Specific version to delete")]
         version: Option<Version>,
 
-        #[arg(long, help = "Irreversibly destroy ciphertext rather than soft-deleting")]
+        #[arg(
+            long,
+            help = "Irreversibly destroy ciphertext rather than soft-deleting"
+        )]
         destroy: bool,
     },
 
@@ -136,10 +143,18 @@ pub enum Command {
 
     #[command(about = "Inject profile secrets into the environment and execve directly")]
     Exec {
-        #[arg(long, required = true, help = "Profile name in /etc/secretbae/profiles/<name>.toml")]
+        #[arg(
+            long,
+            required = true,
+            help = "Profile name in /etc/secretbae/profiles/<name>.toml"
+        )]
         profile: String,
 
-        #[arg(last = true, required = true, help = "Command and arguments to execute")]
+        #[arg(
+            last = true,
+            required = true,
+            help = "Command and arguments to execute"
+        )]
         command: Vec<String>,
     },
 
@@ -183,17 +198,10 @@ pub enum Command {
 
     #[command(about = "Live metadata browser")]
     Top {
-        #[arg(
-            long,
-            default_value = "2",
-            help = "Auto-refresh interval in seconds"
-        )]
+        #[arg(long, default_value = "2", help = "Auto-refresh interval in seconds")]
         interval: u64,
 
-        #[arg(
-            long,
-            help = "Render a single non-interactive frame and exit"
-        )]
+        #[arg(long, help = "Render a single non-interactive frame and exit")]
         once: bool,
     },
 }
@@ -215,7 +223,10 @@ pub enum TagAction {
         #[arg(help = "Secret path")]
         path: SecretPath,
 
-        #[arg(required = true, help = "Tags as key=value, or a bare key to remove every value under it")]
+        #[arg(
+            required = true,
+            help = "Tags as key=value, or a bare key to remove every value under it"
+        )]
         tags: Vec<TagSelector>,
     },
 

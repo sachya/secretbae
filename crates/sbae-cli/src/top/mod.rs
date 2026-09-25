@@ -12,11 +12,11 @@ use ratatui::layout::Rect;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 use sbae_proto::api::{route, ListRequest, ListResponse, PathRequest, VersionsResponse};
 
+use crate::client::Client;
 pub use app::{
     App, AppMode, PathFilter, RefreshInterval, SortColumn, SortCriteria, SortDirection,
     StatusMessage,
 };
-use crate::client::Client;
 
 /// Terminal restoration RAII guard ensuring raw mode and alternate screen exit.
 struct TerminalGuard;
@@ -104,7 +104,9 @@ fn render_once(app: &App) -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(std::io::stdout());
     let mut terminal = Terminal::with_options(
         backend,
-        TerminalOptions { viewport: Viewport::Fixed(Rect::new(0, 0, width, height)) },
+        TerminalOptions {
+            viewport: Viewport::Fixed(Rect::new(0, 0, width, height)),
+        },
     )?;
 
     terminal.draw(|f| render::render(app, f))?;
@@ -124,13 +126,24 @@ fn frame_size() -> (u16, u16) {
     }
 
     let from_env = |name: &str, fallback: u16| {
-        std::env::var(name).ok().and_then(|value| value.parse().ok()).filter(|v| *v > 0).unwrap_or(fallback)
+        std::env::var(name)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(fallback)
     };
 
-    (from_env("COLUMNS", FALLBACK_SIZE.0), from_env("LINES", FALLBACK_SIZE.1))
+    (
+        from_env("COLUMNS", FALLBACK_SIZE.0),
+        from_env("LINES", FALLBACK_SIZE.1),
+    )
 }
 
-fn run_interactive(client: &Client, app: &mut App, interval: RefreshInterval) -> anyhow::Result<()> {
+fn run_interactive(
+    client: &Client,
+    app: &mut App,
+    interval: RefreshInterval,
+) -> anyhow::Result<()> {
     install_panic_hook();
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();

@@ -93,7 +93,10 @@ impl TokenHash {
     }
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self, PolicyError> {
-        bytes.try_into().map(Self).map_err(|_| PolicyError::MalformedToken)
+        bytes
+            .try_into()
+            .map(Self)
+            .map_err(|_| PolicyError::MalformedToken)
     }
 
     fn of(secret: &[u8]) -> Self {
@@ -169,14 +172,20 @@ pub struct PresentedToken {
 impl PresentedToken {
     /// Split and hash a token string. Never records the secret itself.
     pub fn parse(presented: &str) -> Result<Self, PolicyError> {
-        let body = presented.trim().strip_prefix(TOKEN_PREFIX).ok_or(PolicyError::MalformedToken)?;
+        let body = presented
+            .trim()
+            .strip_prefix(TOKEN_PREFIX)
+            .ok_or(PolicyError::MalformedToken)?;
         let (prefix, secret) = body.split_once('_').ok_or(PolicyError::MalformedToken)?;
 
         if secret.len() != SECRET_CHARS || BASE32_NOPAD.decode(secret.as_bytes()).is_err() {
             return Err(PolicyError::MalformedToken);
         }
 
-        Ok(Self { prefix: LookupPrefix::parse(prefix)?, hash: TokenHash::of(secret.as_bytes()) })
+        Ok(Self {
+            prefix: LookupPrefix::parse(prefix)?,
+            hash: TokenHash::of(secret.as_bytes()),
+        })
     }
 
     /// The handle used to find the stored record.
@@ -218,7 +227,10 @@ pub enum AuthFailure {
     Expired,
     Revoked,
     /// The token is valid but bound to a different local user.
-    PeerMismatch { expected: u32, actual: u32 },
+    PeerMismatch {
+        expected: u32,
+        actual: u32,
+    },
 }
 
 /// Check a presented token against its stored record and the caller's peer credentials.
@@ -242,7 +254,10 @@ pub fn authenticate(
     }
     if let Some(expected) = record.bound_uid {
         if expected != peer.uid {
-            return Err(AuthFailure::PeerMismatch { expected, actual: peer.uid });
+            return Err(AuthFailure::PeerMismatch {
+                expected,
+                actual: peer.uid,
+            });
         }
     }
 
@@ -268,7 +283,11 @@ mod tests {
     }
 
     fn peer(uid: u32) -> PeerCredentials {
-        PeerCredentials { uid, gid: uid, pid: 1234 }
+        PeerCredentials {
+            uid,
+            gid: uid,
+            pid: 1234,
+        }
     }
 
     #[test]
@@ -276,7 +295,12 @@ mod tests {
         let issued = issue().unwrap();
         let presented = PresentedToken::parse(issued.secret.expose()).unwrap();
         assert_eq!(
-            authenticate(&record(&issued), &presented, peer(33), OffsetDateTime::now_utc()),
+            authenticate(
+                &record(&issued),
+                &presented,
+                peer(33),
+                OffsetDateTime::now_utc()
+            ),
             Ok(issued.id)
         );
     }
@@ -288,7 +312,10 @@ mod tests {
 
         let secret = a.secret.expose();
         assert!(secret.starts_with("sbae_"));
-        assert_eq!(secret.len(), TOKEN_PREFIX.len() + PREFIX_CHARS + 1 + SECRET_CHARS);
+        assert_eq!(
+            secret.len(),
+            TOKEN_PREFIX.len() + PREFIX_CHARS + 1 + SECRET_CHARS
+        );
         assert_ne!(a.secret.expose(), b.secret.expose());
         assert_ne!(a.prefix, b.prefix);
     }
@@ -307,12 +334,25 @@ mod tests {
         let issued = issue().unwrap();
         let other = issue().unwrap();
 
-        let forged = format!("sbae_{}_{}", issued.prefix, other.secret.expose().rsplit('_').next().unwrap());
+        let forged = format!(
+            "sbae_{}_{}",
+            issued.prefix,
+            other.secret.expose().rsplit('_').next().unwrap()
+        );
         let presented = PresentedToken::parse(&forged).unwrap();
 
-        assert_eq!(presented.prefix(), &issued.prefix, "the forgery targets the right record");
         assert_eq!(
-            authenticate(&record(&issued), &presented, peer(0), OffsetDateTime::now_utc()),
+            presented.prefix(),
+            &issued.prefix,
+            "the forgery targets the right record"
+        );
+        assert_eq!(
+            authenticate(
+                &record(&issued),
+                &presented,
+                peer(0),
+                OffsetDateTime::now_utc()
+            ),
             Err(AuthFailure::UnknownToken)
         );
     }
@@ -337,19 +377,28 @@ mod tests {
         let presented = PresentedToken::parse(issued.secret.expose()).unwrap();
         let now = OffsetDateTime::now_utc();
 
-        let expired = TokenRecord { expires_at: Some(now - Duration::seconds(1)), ..record(&issued) };
+        let expired = TokenRecord {
+            expires_at: Some(now - Duration::seconds(1)),
+            ..record(&issued)
+        };
         assert_eq!(
             authenticate(&expired, &presented, peer(0), now),
             Err(AuthFailure::Expired)
         );
 
-        let revoked = TokenRecord { revoked_at: Some(now - Duration::seconds(1)), ..record(&issued) };
+        let revoked = TokenRecord {
+            revoked_at: Some(now - Duration::seconds(1)),
+            ..record(&issued)
+        };
         assert_eq!(
             authenticate(&revoked, &presented, peer(0), now),
             Err(AuthFailure::Revoked)
         );
 
-        let valid = TokenRecord { expires_at: Some(now + Duration::hours(1)), ..record(&issued) };
+        let valid = TokenRecord {
+            expires_at: Some(now + Duration::hours(1)),
+            ..record(&issued)
+        };
         assert!(authenticate(&valid, &presented, peer(0), now).is_ok());
     }
 
@@ -358,13 +407,19 @@ mod tests {
     fn a_bound_token_is_useless_to_another_local_user() {
         let issued = issue().unwrap();
         let presented = PresentedToken::parse(issued.secret.expose()).unwrap();
-        let bound = TokenRecord { bound_uid: Some(33), ..record(&issued) };
+        let bound = TokenRecord {
+            bound_uid: Some(33),
+            ..record(&issued)
+        };
         let now = OffsetDateTime::now_utc();
 
         assert!(authenticate(&bound, &presented, peer(33), now).is_ok());
         assert_eq!(
             authenticate(&bound, &presented, peer(1000), now),
-            Err(AuthFailure::PeerMismatch { expected: 33, actual: 1000 })
+            Err(AuthFailure::PeerMismatch {
+                expected: 33,
+                actual: 1000
+            })
         );
     }
 

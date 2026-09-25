@@ -40,7 +40,10 @@ pub fn backup(
     json: bool,
 ) -> anyhow::Result<()> {
     if output.exists() {
-        bail!("{} already exists; refusing to overwrite a backup", output.display());
+        bail!(
+            "{} already exists; refusing to overwrite a backup",
+            output.display()
+        );
     }
 
     let mut passphrase = match passphrase {
@@ -48,7 +51,9 @@ pub fn backup(
         None => prompt_new_passphrase()?,
     };
 
-    let request = api::BackupRequest { passphrase: passphrase.clone() };
+    let request = api::BackupRequest {
+        passphrase: passphrase.clone(),
+    };
     let sent: anyhow::Result<api::BackupResponse> = client.post(route::BACKUP, &request);
     passphrase.zeroize();
     let response = sent?;
@@ -57,8 +62,7 @@ pub fn backup(
         .decode(response.bundle.as_bytes())
         .context("daemon returned a bundle that is not base64")?;
 
-    write_private(output, &bundle)
-        .with_context(|| format!("writing {}", output.display()))?;
+    write_private(output, &bundle).with_context(|| format!("writing {}", output.display()))?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&response)?);
@@ -81,8 +85,7 @@ pub fn restore(
     passphrase: Option<String>,
     json: bool,
 ) -> anyhow::Result<()> {
-    let bundle = std::fs::read(input)
-        .with_context(|| format!("reading {}", input.display()))?;
+    let bundle = std::fs::read(input).with_context(|| format!("reading {}", input.display()))?;
 
     let mut passphrase = match passphrase {
         Some(supplied) => supplied,
@@ -191,7 +194,9 @@ fn read_without_echo() -> anyhow::Result<String> {
 
     let mut typed = String::new();
     loop {
-        let Event::Key(key) = event::read()? else { continue };
+        let Event::Key(key) = event::read()? else {
+            continue;
+        };
 
         // Windows terminals report both press and release; counting both would double every
         // character.

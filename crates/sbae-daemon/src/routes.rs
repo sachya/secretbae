@@ -34,7 +34,10 @@ impl ApiError {
     }
 
     pub(crate) fn internal() -> Self {
-        Self(StatusCode::INTERNAL_SERVER_ERROR, "internal error".to_owned())
+        Self(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal error".to_owned(),
+        )
     }
 }
 
@@ -113,7 +116,8 @@ pub(crate) fn gate(
 }
 
 pub(crate) fn rfc3339(at: OffsetDateTime) -> String {
-    at.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+    at.format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default()
 }
 
 async fn status(
@@ -140,8 +144,16 @@ async fn read(
     headers: HeaderMap,
     Json(request): Json<api::ReadRequest>,
 ) -> ApiResult<api::ReadResponse> {
-    let caller = gate(&state, &headers, peer.credentials(), route::READ, Some(&request.path))?;
-    let selector = request.version.map_or(VersionSelector::Current, VersionSelector::Exact);
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::READ,
+        Some(&request.path),
+    )?;
+    let selector = request
+        .version
+        .map_or(VersionSelector::Current, VersionSelector::Exact);
 
     let value = {
         let keys = state.keys();
@@ -151,9 +163,20 @@ async fn read(
         (BASE64.encode(plaintext.expose()), stored.info.version)
     };
 
-    record(&state, &caller, Action::Read, AuditResult::Success, Some(&request.path), Some(value.1))?;
+    record(
+        &state,
+        &caller,
+        Action::Read,
+        AuditResult::Success,
+        Some(&request.path),
+        Some(value.1),
+    )?;
 
-    Ok(Json(api::ReadResponse { path: request.path, version: value.1, value: value.0 }))
+    Ok(Json(api::ReadResponse {
+        path: request.path,
+        version: value.1,
+        value: value.0,
+    }))
 }
 
 async fn write(
@@ -162,7 +185,13 @@ async fn write(
     headers: HeaderMap,
     Json(request): Json<api::WriteRequest>,
 ) -> ApiResult<api::WriteResponse> {
-    let caller = gate(&state, &headers, peer.credentials(), route::WRITE, Some(&request.path))?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::WRITE,
+        Some(&request.path),
+    )?;
 
     let plaintext = BASE64
         .decode(request.value.as_bytes())
@@ -186,8 +215,18 @@ async fn write(
         version
     };
 
-    record(&state, &caller, Action::Write, AuditResult::Success, Some(&request.path), Some(version))?;
-    Ok(Json(api::WriteResponse { path: request.path, version }))
+    record(
+        &state,
+        &caller,
+        Action::Write,
+        AuditResult::Success,
+        Some(&request.path),
+        Some(version),
+    )?;
+    Ok(Json(api::WriteResponse {
+        path: request.path,
+        version,
+    }))
 }
 
 async fn list(
@@ -208,7 +247,14 @@ async fn list(
     // against the caller's policies so a listing cannot reveal paths they may not see.
     let visible = filter_visible(&state, &caller, summaries);
 
-    record(&state, &caller, Action::List, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::List,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
     Ok(Json(api::ListResponse { secrets: visible }))
 }
 
@@ -252,10 +298,23 @@ async fn versions(
     headers: HeaderMap,
     Json(request): Json<api::PathRequest>,
 ) -> ApiResult<api::VersionsResponse> {
-    let caller = gate(&state, &headers, peer.credentials(), route::VERSIONS, Some(&request.path))?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::VERSIONS,
+        Some(&request.path),
+    )?;
     let listed = state.store().versions(&request.path)?;
 
-    record(&state, &caller, Action::List, AuditResult::Success, Some(&request.path), None)?;
+    record(
+        &state,
+        &caller,
+        Action::List,
+        AuditResult::Success,
+        Some(&request.path),
+        None,
+    )?;
 
     Ok(Json(api::VersionsResponse {
         path: request.path,
@@ -278,10 +337,23 @@ async fn rollback(
     headers: HeaderMap,
     Json(request): Json<api::RollbackRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::ROLLBACK, Some(&request.path))?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::ROLLBACK,
+        Some(&request.path),
+    )?;
     state.store().rollback(&request.path, request.to)?;
 
-    record(&state, &caller, Action::Rollback, AuditResult::Success, Some(&request.path), Some(request.to))?;
+    record(
+        &state,
+        &caller,
+        Action::Rollback,
+        AuditResult::Success,
+        Some(&request.path),
+        Some(request.to),
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -291,13 +363,34 @@ async fn delete(
     headers: HeaderMap,
     Json(request): Json<api::DeleteRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::DELETE, Some(&request.path))?;
-    let selector = request.version.map_or(VersionSelector::Current, VersionSelector::Exact);
-    let mode = if request.destroy { DeleteMode::Destroy } else { DeleteMode::Soft };
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::DELETE,
+        Some(&request.path),
+    )?;
+    let selector = request
+        .version
+        .map_or(VersionSelector::Current, VersionSelector::Exact);
+    let mode = if request.destroy {
+        DeleteMode::Destroy
+    } else {
+        DeleteMode::Soft
+    };
 
-    let removed = state.store().delete_version(&request.path, selector, mode)?;
+    let removed = state
+        .store()
+        .delete_version(&request.path, selector, mode)?;
 
-    record(&state, &caller, Action::Delete, AuditResult::Success, Some(&request.path), Some(removed))?;
+    record(
+        &state,
+        &caller,
+        Action::Delete,
+        AuditResult::Success,
+        Some(&request.path),
+        Some(removed),
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -307,10 +400,23 @@ async fn tag_add(
     headers: HeaderMap,
     Json(request): Json<api::TagRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::TAG_ADD, Some(&request.path))?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::TAG_ADD,
+        Some(&request.path),
+    )?;
     state.store().add_tags(&request.path, &request.tags)?;
 
-    record(&state, &caller, Action::Tag, AuditResult::Success, Some(&request.path), None)?;
+    record(
+        &state,
+        &caller,
+        Action::Tag,
+        AuditResult::Success,
+        Some(&request.path),
+        None,
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -320,10 +426,23 @@ async fn tag_remove(
     headers: HeaderMap,
     Json(request): Json<api::TagRemoveRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::TAG_REMOVE, Some(&request.path))?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::TAG_REMOVE,
+        Some(&request.path),
+    )?;
     state.store().remove_tags(&request.path, &request.tags)?;
 
-    record(&state, &caller, Action::Tag, AuditResult::Success, Some(&request.path), None)?;
+    record(
+        &state,
+        &caller,
+        Action::Tag,
+        AuditResult::Success,
+        Some(&request.path),
+        None,
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -341,7 +460,13 @@ async fn resolve(
     let mut caller = None;
 
     for path in &request.paths {
-        let authenticated = gate(&state, &headers, peer.credentials(), route::RESOLVE, Some(path))?;
+        let authenticated = gate(
+            &state,
+            &headers,
+            peer.credentials(),
+            route::RESOLVE,
+            Some(path),
+        )?;
 
         let keys = state.keys();
         let store = state.store();
@@ -359,7 +484,14 @@ async fn resolve(
 
     // One audit entry for the whole batch: this is a service start, not N unrelated reads.
     if let Some(caller) = caller {
-        record(&state, &caller, Action::Resolve, AuditResult::Success, None, None)?;
+        record(
+            &state,
+            &caller,
+            Action::Resolve,
+            AuditResult::Success,
+            None,
+            None,
+        )?;
     }
 
     Ok(Json(api::ResolveResponse { secrets: resolved }))
@@ -371,7 +503,13 @@ async fn token_create(
     headers: HeaderMap,
     Json(request): Json<api::TokenCreateRequest>,
 ) -> ApiResult<api::TokenCreateResponse> {
-    let caller = gate(&state, &headers, peer.credentials(), route::TOKEN_CREATE, None)?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::TOKEN_CREATE,
+        None,
+    )?;
 
     let issued = issue().map_err(|_| ApiError::internal())?;
     let expires_at = request
@@ -389,7 +527,14 @@ async fn token_create(
         policies: &request.policies,
     })?;
 
-    record(&state, &caller, Action::TokenCreate, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::TokenCreate,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
 
     Ok(Json(api::TokenCreateResponse {
         token: issued.secret.expose().to_owned(),
@@ -403,7 +548,13 @@ async fn token_list(
     ConnectInfo(peer): ConnectInfo<PeerInfo>,
     headers: HeaderMap,
 ) -> ApiResult<api::TokenListResponse> {
-    gate(&state, &headers, peer.credentials(), route::TOKEN_LIST, None)?;
+    gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::TOKEN_LIST,
+        None,
+    )?;
 
     let tokens = state
         .store()
@@ -430,13 +581,26 @@ async fn token_revoke(
     headers: HeaderMap,
     Json(request): Json<api::TokenRevokeRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::TOKEN_REVOKE, None)?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::TOKEN_REVOKE,
+        None,
+    )?;
 
     let prefix = sbae_policy::LookupPrefix::parse(&request.prefix)
         .map_err(|_| ApiError::bad_request("malformed token prefix"))?;
     state.store().revoke_token(&prefix)?;
 
-    record(&state, &caller, Action::TokenRevoke, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::TokenRevoke,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -446,13 +610,26 @@ async fn policy_put(
     headers: HeaderMap,
     Json(request): Json<api::PolicyPutRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::POLICY_PUT, None)?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::POLICY_PUT,
+        None,
+    )?;
 
     let policy = sbae_policy::Policy::from_json(&request.document)
         .map_err(|source| ApiError::bad_request(&source.to_string()))?;
     state.store().put_policy(&policy)?;
 
-    record(&state, &caller, Action::PolicyWrite, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::PolicyWrite,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -461,8 +638,16 @@ async fn policy_list(
     ConnectInfo(peer): ConnectInfo<PeerInfo>,
     headers: HeaderMap,
 ) -> ApiResult<api::PolicyListResponse> {
-    gate(&state, &headers, peer.credentials(), route::POLICY_LIST, None)?;
-    Ok(Json(api::PolicyListResponse { policies: state.store().list_policy_names()? }))
+    gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::POLICY_LIST,
+        None,
+    )?;
+    Ok(Json(api::PolicyListResponse {
+        policies: state.store().list_policy_names()?,
+    }))
 }
 
 async fn policy_delete(
@@ -471,10 +656,23 @@ async fn policy_delete(
     headers: HeaderMap,
     Json(request): Json<api::NameRequest>,
 ) -> ApiResult<api::Ack> {
-    let caller = gate(&state, &headers, peer.credentials(), route::POLICY_DELETE, None)?;
+    let caller = gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::POLICY_DELETE,
+        None,
+    )?;
     state.store().delete_policy(&request.name)?;
 
-    record(&state, &caller, Action::PolicyWrite, AuditResult::Success, None, None)?;
+    record(
+        &state,
+        &caller,
+        Action::PolicyWrite,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
     Ok(Json(api::Ack::ok()))
 }
 
@@ -483,7 +681,13 @@ async fn audit_verify(
     ConnectInfo(peer): ConnectInfo<PeerInfo>,
     headers: HeaderMap,
 ) -> ApiResult<api::AuditVerifyResponse> {
-    gate(&state, &headers, peer.credentials(), route::AUDIT_VERIFY, None)?;
+    gate(
+        &state,
+        &headers,
+        peer.credentials(),
+        route::AUDIT_VERIFY,
+        None,
+    )?;
 
     let keys = state.keys();
     let store = state.store();
@@ -492,10 +696,14 @@ async fn audit_verify(
 
     Ok(Json(api::AuditVerifyResponse {
         entries: match &outcome {
-            sbae_audit::VerificationResult::Valid { entries_verified, .. } => *entries_verified,
+            sbae_audit::VerificationResult::Valid {
+                entries_verified, ..
+            } => *entries_verified,
             _ => 0,
         },
-        broken_at: outcome.broken_seq().map(|seq| i64::try_from(seq.get()).unwrap_or(-1)),
+        broken_at: outcome
+            .broken_seq()
+            .map(|seq| i64::try_from(seq.get()).unwrap_or(-1)),
         detail: (!outcome.is_valid()).then(|| outcome.to_string()),
     }))
 }

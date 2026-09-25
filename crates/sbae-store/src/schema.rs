@@ -17,11 +17,16 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     let applied: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
 
     if applied > SCHEMA_VERSION {
-        return Err(StoreError::SchemaTooNew { found: applied, supported: SCHEMA_VERSION });
+        return Err(StoreError::SchemaTooNew {
+            found: applied,
+            supported: SCHEMA_VERSION,
+        });
     }
 
     for (index, migration) in MIGRATIONS.iter().enumerate().skip(applied as usize) {
-        let version = u32::try_from(index).map_err(|_| StoreError::Corrupt { what: "migration index" })? + 1;
+        let version = u32::try_from(index).map_err(|_| StoreError::Corrupt {
+            what: "migration index",
+        })? + 1;
         conn.execute_batch(migration)?;
         // Not a bound parameter: SQLite does not accept one in a PRAGMA, and `version` is
         // derived from a compile-time constant array index rather than any input.

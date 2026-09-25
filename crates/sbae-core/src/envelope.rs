@@ -119,13 +119,22 @@ impl SealedVersion {
         Ok(Self {
             ciphertext,
             nonce,
-            key: WrappedKey { wrapped_dek, dek_nonce, mk_generation },
+            key: WrappedKey {
+                wrapped_dek,
+                dek_nonce,
+                mk_generation,
+            },
         })
     }
 
     pub fn open(&self, master: &MasterKey, binding: VersionBinding) -> Result<SecretBytes> {
         let dek = self.key.open(master, binding)?;
-        aead::open(dek.raw(), &self.nonce, &binding.payload_aad(), &self.ciphertext)
+        aead::open(
+            dek.raw(),
+            &self.nonce,
+            &binding.payload_aad(),
+            &self.ciphertext,
+        )
     }
 
     /// Move this version from one master key to another without touching the payload.
@@ -159,7 +168,10 @@ mod tests {
     #[test]
     fn round_trip() {
         let sealed = SealedVersion::seal(&master(), 1, binding(1), b"postgres://x").unwrap();
-        assert_eq!(sealed.open(&master(), binding(1)).unwrap().expose(), b"postgres://x");
+        assert_eq!(
+            sealed.open(&master(), binding(1)).unwrap().expose(),
+            b"postgres://x"
+        );
     }
 
     #[test]
@@ -167,7 +179,10 @@ mod tests {
         let a = SealedVersion::seal(&master(), 1, binding(1), b"same").unwrap();
         let b = SealedVersion::seal(&master(), 1, binding(2), b"same").unwrap();
         assert_ne!(a.key.wrapped_dek, b.key.wrapped_dek);
-        assert_ne!(a.ciphertext, b.ciphertext, "identical plaintext must not yield identical bytes");
+        assert_ne!(
+            a.ciphertext, b.ciphertext,
+            "identical plaintext must not yield identical bytes"
+        );
     }
 
     /// The headline property: ciphertext cannot be relocated to another slot.
@@ -205,8 +220,17 @@ mod tests {
 
         sealed.rewrap(&old, &new, 2, binding(1)).unwrap();
 
-        assert_eq!(sealed.ciphertext, payload_before, "rewrap must not re-encrypt the payload");
-        assert_eq!(sealed.open(&new, binding(1)).unwrap().expose(), b"rotate-me");
-        assert!(sealed.open(&old, binding(1)).is_err(), "the retired master key must stop working");
+        assert_eq!(
+            sealed.ciphertext, payload_before,
+            "rewrap must not re-encrypt the payload"
+        );
+        assert_eq!(
+            sealed.open(&new, binding(1)).unwrap().expose(),
+            b"rotate-me"
+        );
+        assert!(
+            sealed.open(&old, binding(1)).is_err(),
+            "the retired master key must stop working"
+        );
     }
 }

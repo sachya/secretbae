@@ -41,17 +41,25 @@ pub fn title_bar() -> Style {
 
 #[must_use]
 pub fn header_cell() -> Style {
-    Style::default().bg(Color::Rgb(38, 44, 62)).fg(ACCENT).add_modifier(Modifier::BOLD)
+    Style::default()
+        .bg(Color::Rgb(38, 44, 62))
+        .fg(ACCENT)
+        .add_modifier(Modifier::BOLD)
 }
 
 #[must_use]
 pub fn row_background(index: usize) -> Style {
-    Style::default().bg(if index % 2 == 0 { PANEL } else { ZEBRA }).fg(TEXT)
+    Style::default()
+        .bg(if index % 2 == 0 { PANEL } else { ZEBRA })
+        .fg(TEXT)
 }
 
 #[must_use]
 pub fn selected_row() -> Style {
-    Style::default().bg(SELECTED).fg(Color::White).add_modifier(Modifier::BOLD)
+    Style::default()
+        .bg(SELECTED)
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD)
 }
 
 /// A key hint rendered as a inverse-video chip, so the bindings read as pressable keys
@@ -61,7 +69,10 @@ pub fn key_chip(key: &str, label: &str) -> Vec<Span<'static>> {
     vec![
         Span::styled(
             format!(" {key} "),
-            Style::default().bg(ACCENT).fg(BASE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .bg(ACCENT)
+                .fg(BASE)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!(" {label}  "), Style::default().fg(MUTED)),
     ]
@@ -90,7 +101,10 @@ pub fn tag_colour(tag: &Tag) -> Color {
 pub fn tag_chip(tag: &Tag) -> Span<'static> {
     Span::styled(
         format!(" {tag} "),
-        Style::default().fg(BASE).bg(tag_colour(tag)).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(BASE)
+            .bg(tag_colour(tag))
+            .add_modifier(Modifier::BOLD),
     )
 }
 
@@ -126,7 +140,10 @@ pub fn version_gauge(count: u64) -> Vec<Span<'static>> {
     }
 
     vec![
-        Span::styled(format!("{count:>3} "), Style::default().fg(colour).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!("{count:>3} "),
+            Style::default().fg(colour).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(bar, Style::default().fg(colour)),
     ]
 }
@@ -135,7 +152,9 @@ pub fn version_gauge(count: u64) -> Vec<Span<'static>> {
 #[must_use]
 pub fn path_spans(path: &str, selected: bool) -> Vec<Span<'static>> {
     let leaf_style = if selected {
-        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(TEXT).add_modifier(Modifier::BOLD)
     };
@@ -153,12 +172,15 @@ pub fn path_spans(path: &str, selected: bool) -> Vec<Span<'static>> {
 /// not a timestamp they have to subtract in their head.
 #[must_use]
 pub fn relative_age(rfc3339: &str) -> Span<'static> {
-    let Ok(then) = time::OffsetDateTime::parse(rfc3339, &time::format_description::well_known::Rfc3339)
+    let Ok(then) =
+        time::OffsetDateTime::parse(rfc3339, &time::format_description::well_known::Rfc3339)
     else {
         return Span::styled(rfc3339.to_owned(), Style::default().fg(MUTED));
     };
 
-    let seconds = (time::OffsetDateTime::now_utc() - then).whole_seconds().max(0);
+    let seconds = (time::OffsetDateTime::now_utc() - then)
+        .whole_seconds()
+        .max(0);
     let (text, colour) = match seconds {
         0..=59 => (format!("{seconds}s ago"), OK),
         60..=3599 => (format!("{}m ago", seconds / 60), OK),
@@ -192,8 +214,14 @@ mod tests {
     fn the_version_gauge_saturates_rather_than_growing_without_bound() {
         let wide = version_gauge(400);
         let bar: String = wide[1].content.to_string();
-        assert!(bar.ends_with('+'), "a large count must be marked as saturated");
-        assert!(bar.chars().count() <= 8, "the bar must not overflow its column: {bar}");
+        assert!(
+            bar.ends_with('+'),
+            "a large count must be marked as saturated"
+        );
+        assert!(
+            bar.chars().count() <= 8,
+            "the bar must not overflow its column: {bar}"
+        );
     }
 
     #[test]
@@ -219,7 +247,9 @@ mod tests {
         let format = &time::format_description::well_known::Rfc3339;
 
         let render = |ago: time::Duration| {
-            relative_age(&(now - ago).format(format).unwrap()).content.to_string()
+            relative_age(&(now - ago).format(format).unwrap())
+                .content
+                .to_string()
         };
 
         assert!(render(time::Duration::seconds(5)).ends_with("s ago"));
@@ -236,8 +266,12 @@ mod tests {
 
     #[test]
     fn every_version_state_has_a_distinct_marker_and_colour() {
-        let states =
-            [VersionState::Active, VersionState::Deleted, VersionState::Destroyed].map(version_state_style);
+        let states = [
+            VersionState::Active,
+            VersionState::Deleted,
+            VersionState::Destroyed,
+        ]
+        .map(version_state_style);
 
         assert_eq!(states[0].1, OK);
         assert_eq!(states[2].1, DANGER);

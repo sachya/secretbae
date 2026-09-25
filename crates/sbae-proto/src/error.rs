@@ -11,7 +11,10 @@ pub enum ProtoError {
     InvalidPath { path: String, reason: &'static str },
 
     #[error("invalid tag {what}: {reason}")]
-    InvalidTag { what: &'static str, reason: &'static str },
+    InvalidTag {
+        what: &'static str,
+        reason: &'static str,
+    },
 
     #[error("invalid version: versions are whole numbers starting at 1")]
     InvalidVersion,

@@ -63,8 +63,12 @@ mod tests {
         .unwrap();
 
         let binding = VersionBinding::new(uuid::Uuid::from_u128(1), 1);
-        let sealed = SealedVersion::seal(&recovered, 1, binding, b"postgres://user:pw@/db").unwrap();
-        assert_eq!(sealed.open(&master, binding).unwrap().expose(), b"postgres://user:pw@/db");
+        let sealed =
+            SealedVersion::seal(&recovered, 1, binding, b"postgres://user:pw@/db").unwrap();
+        assert_eq!(
+            sealed.open(&master, binding).unwrap().expose(),
+            b"postgres://user:pw@/db"
+        );
     }
 
     #[test]

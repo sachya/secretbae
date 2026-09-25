@@ -43,15 +43,18 @@ impl Store {
     pub fn sealed_master_key(&self) -> Result<Option<SealedMasterKey>> {
         let stored: Option<Vec<u8>> = self
             .conn
-            .query_row("SELECT value FROM meta WHERE key = ?1", [META_SEALED_MASTER_KEY], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [META_SEALED_MASTER_KEY],
+                |row| row.get(0),
+            )
             .optional()?;
 
         stored
             .map(|bytes| {
-                SealedMasterKey::from_bytes(&bytes)
-                    .map_err(|_| StoreError::Corrupt { what: "sealed master key" })
+                SealedMasterKey::from_bytes(&bytes).map_err(|_| StoreError::Corrupt {
+                    what: "sealed master key",
+                })
             })
             .transpose()
     }
@@ -156,7 +159,9 @@ mod tests {
         schema::migrate(&conn).unwrap();
         schema::migrate(&conn).unwrap();
 
-        let version: u32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(version, schema::SCHEMA_VERSION);
     }
 
@@ -165,6 +170,9 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         schema::apply_pragmas(&conn).unwrap();
         conn.execute_batch("PRAGMA user_version = 99").unwrap();
-        assert!(matches!(schema::migrate(&conn), Err(StoreError::SchemaTooNew { .. })));
+        assert!(matches!(
+            schema::migrate(&conn),
+            Err(StoreError::SchemaTooNew { .. })
+        ));
     }
 }

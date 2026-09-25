@@ -33,20 +33,32 @@ impl AuditEntry {
 
     fn write_canonical(&self, buf: &mut Vec<u8>) {
         encode_field(buf, &self.ts.as_i64().to_le_bytes());
-        encode_opt_field(buf, self.token_prefix.as_ref().map(|p| p.as_str().as_bytes()));
         encode_opt_field(
             buf,
-            self.peer_uid.map(|u| u.as_u32().to_le_bytes()).as_ref().map(|b| &b[..]),
+            self.token_prefix.as_ref().map(|p| p.as_str().as_bytes()),
         );
         encode_opt_field(
             buf,
-            self.peer_pid.map(|p| p.as_u32().to_le_bytes()).as_ref().map(|b| &b[..]),
+            self.peer_uid
+                .map(|u| u.as_u32().to_le_bytes())
+                .as_ref()
+                .map(|b| &b[..]),
+        );
+        encode_opt_field(
+            buf,
+            self.peer_pid
+                .map(|p| p.as_u32().to_le_bytes())
+                .as_ref()
+                .map(|b| &b[..]),
         );
         encode_field(buf, self.action.as_str().as_bytes());
         encode_opt_field(buf, self.path.as_ref().map(|p| p.as_str().as_bytes()));
         encode_opt_field(
             buf,
-            self.version.map(|v| v.get().to_le_bytes()).as_ref().map(|b| &b[..]),
+            self.version
+                .map(|v| v.get().to_le_bytes())
+                .as_ref()
+                .map(|b| &b[..]),
         );
         encode_field(buf, self.result.as_str().as_bytes());
         encode_opt_field(buf, self.detail.as_ref().map(|d| d.as_str().as_bytes()));

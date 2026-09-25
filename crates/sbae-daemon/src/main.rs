@@ -56,9 +56,7 @@ mod unix {
             // Reaching the store is the first thing a too-narrow bounding set breaks, and the
             // failure arrives as a bare "unable to open database file" from SQLite that names
             // no capability at all.
-            DaemonError::Io(source)
-                if source.kind() == std::io::ErrorKind::PermissionDenied =>
-            {
+            DaemonError::Io(source) if source.kind() == std::io::ErrorKind::PermissionDenied => {
                 Some(CAPABILITY_HINT)
             }
             DaemonError::Store(_) => Some(CAPABILITY_HINT),
@@ -81,8 +79,12 @@ mod unix {
         let first = arguments.next();
         let initialising = first.as_deref() == Some("init");
 
-        let config_path = if initialising { arguments.next() } else { first }
-            .map_or_else(|| PathBuf::from(DEFAULT_CONFIG), PathBuf::from);
+        let config_path = if initialising {
+            arguments.next()
+        } else {
+            first
+        }
+        .map_or_else(|| PathBuf::from(DEFAULT_CONFIG), PathBuf::from);
         let config = Config::load(&config_path)?;
 
         if initialising {

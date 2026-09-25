@@ -6,7 +6,9 @@ use clap::CommandFactory;
 use clap::Parser;
 use sbae_cli::cli::Cli;
 use sbae_cli::env::build_child_env;
-use sbae_cli::profile::{check_no_duplicate_env_names, screaming_snake, validate_profile_mode, EnvEntry, Profile};
+use sbae_cli::profile::{
+    check_no_duplicate_env_names, screaming_snake, validate_profile_mode, EnvEntry, Profile,
+};
 use sbae_cli::token::{resolve_token_with_sources, validate_file_mode};
 use sbae_proto::{SecretPath, Version};
 
@@ -15,7 +17,9 @@ fn clap_debug_assert_validates_cli_command_graph() {
     Cli::command().debug_assert();
 }
 
+// One exhaustive pass over the whole CLI surface; splitting it loses the exhaustive check.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn every_command_and_subcommand_parses_successfully() {
     // 1. status
     let cli = Cli::try_parse_from(["secretbae", "status"]).unwrap();
@@ -23,13 +27,32 @@ fn every_command_and_subcommand_parses_successfully() {
 
     // 2. put
     let cli = Cli::try_parse_from(["secretbae", "put", "prod/db", "--stdin"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Put { stdin: true, .. }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Put { stdin: true, .. }
+    ));
 
     let cli = Cli::try_parse_from([
-        "secretbae", "put", "prod/db", "--value", "secret123", "--tag", "env=prod", "--tag", "team=billing", "--comment", "init",
+        "secretbae",
+        "put",
+        "prod/db",
+        "--value",
+        "secret123",
+        "--tag",
+        "env=prod",
+        "--tag",
+        "team=billing",
+        "--comment",
+        "init",
     ])
     .unwrap();
-    if let sbae_cli::cli::Command::Put { value, tags, comment, .. } = cli.command {
+    if let sbae_cli::cli::Command::Put {
+        value,
+        tags,
+        comment,
+        ..
+    } = cli.command
+    {
         assert_eq!(value, Some("secret123".to_owned()));
         assert_eq!(tags.len(), 2);
         assert_eq!(comment, Some("init".to_owned()));
@@ -39,9 +62,17 @@ fn every_command_and_subcommand_parses_successfully() {
 
     // 3. get
     let cli = Cli::try_parse_from(["secretbae", "get", "prod/db"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Get { raw: false, version: None, .. }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Get {
+            raw: false,
+            version: None,
+            ..
+        }
+    ));
 
-    let cli = Cli::try_parse_from(["secretbae", "get", "prod/db", "--version", "3", "--raw"]).unwrap();
+    let cli =
+        Cli::try_parse_from(["secretbae", "get", "prod/db", "--version", "3", "--raw"]).unwrap();
     if let sbae_cli::cli::Command::Get { raw, version, .. } = cli.command {
         assert!(raw);
         assert_eq!(version, Some(Version::new(3).unwrap()));
@@ -51,9 +82,13 @@ fn every_command_and_subcommand_parses_successfully() {
 
     // 4. ls
     let cli = Cli::try_parse_from(["secretbae", "ls"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Ls { prefix: None, .. }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Ls { prefix: None, .. }
+    ));
 
-    let cli = Cli::try_parse_from(["secretbae", "ls", "prod/billing", "--tag", "env=prod"]).unwrap();
+    let cli =
+        Cli::try_parse_from(["secretbae", "ls", "prod/billing", "--tag", "env=prod"]).unwrap();
     if let sbae_cli::cli::Command::Ls { prefix, tags } = cli.command {
         assert_eq!(prefix, Some("prod/billing".to_owned()));
         assert_eq!(tags.len(), 1);
@@ -63,7 +98,10 @@ fn every_command_and_subcommand_parses_successfully() {
 
     // 5. versions
     let cli = Cli::try_parse_from(["secretbae", "versions", "prod/db"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Versions { .. }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Versions { .. }
+    ));
 
     // 6. rollback
     let cli = Cli::try_parse_from(["secretbae", "rollback", "prod/db", "--to", "2"]).unwrap();
@@ -74,8 +112,12 @@ fn every_command_and_subcommand_parses_successfully() {
     }
 
     // 7. rm
-    let cli = Cli::try_parse_from(["secretbae", "rm", "prod/db", "--version", "1", "--destroy"]).unwrap();
-    if let sbae_cli::cli::Command::Rm { version, destroy, .. } = cli.command {
+    let cli =
+        Cli::try_parse_from(["secretbae", "rm", "prod/db", "--version", "1", "--destroy"]).unwrap();
+    if let sbae_cli::cli::Command::Rm {
+        version, destroy, ..
+    } = cli.command
+    {
         assert_eq!(version, Some(Version::new(1).unwrap()));
         assert!(destroy);
     } else {
@@ -83,44 +125,125 @@ fn every_command_and_subcommand_parses_successfully() {
     }
 
     // 8. tag add / rm / ls
-    let cli = Cli::try_parse_from(["secretbae", "tag", "add", "prod/db", "env=prod", "tier=backend"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Tag { action: sbae_cli::cli::TagAction::Add { .. } }));
+    let cli = Cli::try_parse_from([
+        "secretbae",
+        "tag",
+        "add",
+        "prod/db",
+        "env=prod",
+        "tier=backend",
+    ])
+    .unwrap();
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Tag {
+            action: sbae_cli::cli::TagAction::Add { .. }
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "tag", "rm", "prod/db", "env=prod"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Tag { action: sbae_cli::cli::TagAction::Rm { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Tag {
+            action: sbae_cli::cli::TagAction::Rm { .. }
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "tag", "ls", "prod/db"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Tag { action: sbae_cli::cli::TagAction::Ls { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Tag {
+            action: sbae_cli::cli::TagAction::Ls { .. }
+        }
+    ));
 
     // 9. token create / list / revoke
     let cli = Cli::try_parse_from([
-        "secretbae", "token", "create", "--name", "worker", "--policy", "read-prod", "--policy", "read-dev", "--ttl", "90d", "--bind-uid", "1000",
+        "secretbae",
+        "token",
+        "create",
+        "--name",
+        "worker",
+        "--policy",
+        "read-prod",
+        "--policy",
+        "read-dev",
+        "--ttl",
+        "90d",
+        "--bind-uid",
+        "1000",
     ])
     .unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Token { action: sbae_cli::cli::TokenAction::Create { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Token {
+            action: sbae_cli::cli::TokenAction::Create { .. }
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "token", "list", "sbae_pref"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Token { action: sbae_cli::cli::TokenAction::List { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Token {
+            action: sbae_cli::cli::TokenAction::List { .. }
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "token", "revoke", "sbae_pref"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Token { action: sbae_cli::cli::TokenAction::Revoke { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Token {
+            action: sbae_cli::cli::TokenAction::Revoke { .. }
+        }
+    ));
 
     // 10. policy put / list / rm
-    let cli = Cli::try_parse_from(["secretbae", "policy", "put", "--file", "/etc/pol.json"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Policy { action: sbae_cli::cli::PolicyAction::Put { .. } }));
+    let cli =
+        Cli::try_parse_from(["secretbae", "policy", "put", "--file", "/etc/pol.json"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Policy {
+            action: sbae_cli::cli::PolicyAction::Put { .. }
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "policy", "list"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Policy { action: sbae_cli::cli::PolicyAction::List }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Policy {
+            action: sbae_cli::cli::PolicyAction::List
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "policy", "rm", "pol-name"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Policy { action: sbae_cli::cli::PolicyAction::Rm { .. } }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Policy {
+            action: sbae_cli::cli::PolicyAction::Rm { .. }
+        }
+    ));
 
     // 11. audit verify
     let cli = Cli::try_parse_from(["secretbae", "audit", "verify"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Audit { action: sbae_cli::cli::AuditAction::Verify }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Audit {
+            action: sbae_cli::cli::AuditAction::Verify
+        }
+    ));
 
     // 12. exec
-    let cli = Cli::try_parse_from(["secretbae", "exec", "--profile", "billing", "--", "/bin/app", "--foo", "bar"]).unwrap();
+    let cli = Cli::try_parse_from([
+        "secretbae",
+        "exec",
+        "--profile",
+        "billing",
+        "--",
+        "/bin/app",
+        "--foo",
+        "bar",
+    ])
+    .unwrap();
     if let sbae_cli::cli::Command::Exec { profile, command } = cli.command {
         assert_eq!(profile, "billing");
         assert_eq!(command, vec!["/bin/app", "--foo", "bar"]);
@@ -130,17 +253,33 @@ fn every_command_and_subcommand_parses_successfully() {
 
     // 13. completions
     let cli = Cli::try_parse_from(["secretbae", "completions", "bash"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Completions { .. }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Completions { .. }
+    ));
 
     // 14. top
     let cli = Cli::try_parse_from(["secretbae", "top"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Top { interval: 2, once: false }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Top {
+            interval: 2,
+            once: false
+        }
+    ));
 
     let cli = Cli::try_parse_from(["secretbae", "top", "--interval", "5", "--once"]).unwrap();
-    assert!(matches!(cli.command, sbae_cli::cli::Command::Top { interval: 5, once: true }));
+    assert!(matches!(
+        cli.command,
+        sbae_cli::cli::Command::Top {
+            interval: 5,
+            once: true
+        }
+    ));
 
     // Global flags
-    let cli = Cli::try_parse_from(["secretbae", "--json", "--socket", "/tmp/sock", "status"]).unwrap();
+    let cli =
+        Cli::try_parse_from(["secretbae", "--json", "--socket", "/tmp/sock", "status"]).unwrap();
     assert!(cli.json);
     assert_eq!(cli.socket, Path::new("/tmp/sock"));
 }
@@ -148,7 +287,10 @@ fn every_command_and_subcommand_parses_successfully() {
 #[test]
 fn cli_rejects_plain_token_argument_to_prevent_process_listing_leaks() {
     let result = Cli::try_parse_from(["secretbae", "--token", "secret_value", "status"]);
-    assert!(result.is_err(), "Must refuse --token flag taking value directly");
+    assert!(
+        result.is_err(),
+        "Must refuse --token flag taking value directly"
+    );
 }
 
 #[test]
@@ -212,26 +354,12 @@ fn token_resolution_strictly_follows_precedence_order() {
     assert_eq!(res.as_str(), "direct_env_token");
 
     // Fallback to home config
-    let res = resolve_token_with_sources(
-        None,
-        None,
-        None,
-        None,
-        Some((home_path, true)),
-        reader,
-    )
-    .unwrap();
+    let res = resolve_token_with_sources(None, None, None, None, Some((home_path, true)), reader)
+        .unwrap();
     assert_eq!(res.as_str(), "token_from_home");
 
     // Refusal when nothing exists
-    let res = resolve_token_with_sources(
-        None,
-        None,
-        None,
-        None,
-        Some((home_path, false)),
-        reader,
-    );
+    let res = resolve_token_with_sources(None, None, None, None, Some((home_path, false)), reader);
     assert!(res.is_err());
 }
 
@@ -246,7 +374,10 @@ fn token_resolution_refuses_files_reachable_beyond_owner_and_group() {
     assert!(validate_file_mode(0o640).is_ok());
 
     assert!(validate_file_mode(0o644).is_err(), "world-readable");
-    assert!(validate_file_mode(0o460).is_err(), "group could swap the token");
+    assert!(
+        validate_file_mode(0o460).is_err(),
+        "group could swap the token"
+    );
     assert!(validate_file_mode(0o666).is_err());
     assert!(validate_file_mode(0o777).is_err());
 }
@@ -400,8 +531,16 @@ fn fake_unix_socket_server_verifies_exec_issues_exactly_one_batched_resolve_requ
 
     server_handle.join().unwrap();
 
-    assert_eq!(resolve_count.load(Ordering::SeqCst), 1, "must issue exactly one batched resolve request");
-    assert_eq!(read_count.load(Ordering::SeqCst), 0, "must never issue per-secret read requests");
+    assert_eq!(
+        resolve_count.load(Ordering::SeqCst),
+        1,
+        "must issue exactly one batched resolve request"
+    );
+    assert_eq!(
+        read_count.load(Ordering::SeqCst),
+        0,
+        "must never issue per-secret read requests"
+    );
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
