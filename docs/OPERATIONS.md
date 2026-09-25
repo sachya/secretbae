@@ -152,6 +152,23 @@ same variable name, and strips any inherited `SECRETBAE_TOKEN` from the child.
 
 The cost of this model: **secrets are read once, at start.** See rotation below.
 
+### Reading a secret without a restart
+
+`exec` copies a value into a process's environment once, at start; nothing can update it after
+that without restarting the process. An application that needs to notice a rotated value on its
+own — a long-running worker that re-checks occasionally, rather than a short-lived process an
+init system restarts — can instead call the daemon's second socket directly from its own code.
+
+This is a minimal, plain-text protocol, not JSON over HTTP: no client library is needed in any
+language, only the ability to open a Unix socket and read and write bytes. It is gated by the
+same token, `SO_PEERCRED` and policy checks as every other route, scoped to the same read-only
+capability as `exec`'s own fetch — it grants nothing new, it is just a simpler way to reach the
+same thing from inside a running process. See [API.md](API.md) for the exact wire format and
+copy-paste Python and PHP examples.
+
+Like the rest of this daemon, this is a control plane, not a request hot path: call it when your
+process starts or on some occasional interval of your choosing, not once per request you serve.
+
 ## Rotating a secret
 
 ```bash
@@ -161,8 +178,9 @@ systemctl restart billing-app.service
 
 The restart is not optional and not a limitation that can be configured away. `exec` copies
 values into the process image at startup; nothing can rewrite another process's environment
-afterwards. If you need rotation without a restart, the application must call the socket itself
-at runtime rather than using `exec`.
+afterwards. If you need rotation without a restart, have the application call the resolve socket
+itself instead of using `exec` — see [Reading a secret without a restart](#reading-a-secret-without-a-restart)
+above and [API.md](API.md).
 
 Rolling forward and back does not destroy anything:
 

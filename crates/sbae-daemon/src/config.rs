@@ -17,6 +17,9 @@ pub struct Config {
     pub keyfile: PathBuf,
     pub store: PathBuf,
     pub socket: PathBuf,
+    /// A second, minimal, plain-text protocol for reading secrets -- see `docs/API.md`. Reuses
+    /// `socket_mode` and the same three gates as `socket`; the only new surface is its parser.
+    pub resolve_socket: PathBuf,
     /// Account the daemon runs as once the master key is in memory.
     pub user: String,
     /// Socket mode. Group-accessible so an application's user can connect; the token and its
@@ -30,6 +33,7 @@ impl Default for Config {
             keyfile: PathBuf::from("/etc/secretbae/master.key"),
             store: PathBuf::from("/var/lib/secretbae/store.db"),
             socket: PathBuf::from(sbae_proto::api::DEFAULT_SOCKET_PATH),
+            resolve_socket: PathBuf::from(sbae_proto::api::DEFAULT_RESOLVE_SOCKET_PATH),
             user: "secretbae".to_owned(),
             socket_mode: 0o660,
         }
@@ -58,6 +62,10 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.keyfile, Path::new("/etc/secretbae/master.key"));
         assert_eq!(config.socket, Path::new("/run/secretbae/sock"));
+        assert_eq!(
+            config.resolve_socket,
+            Path::new("/run/secretbae/resolve.sock")
+        );
         assert_eq!(config.user, "secretbae");
         assert_eq!(config.socket_mode, 0o660);
     }

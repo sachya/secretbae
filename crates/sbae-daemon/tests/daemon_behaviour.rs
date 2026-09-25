@@ -6,6 +6,7 @@
 
 #![cfg(unix)]
 
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -20,6 +21,7 @@ use sbae_store::{NewToken, Store};
 
 struct Harness {
     socket: PathBuf,
+    resolve_socket: PathBuf,
     directory: PathBuf,
 }
 
@@ -29,6 +31,7 @@ impl Harness {
         let directory = std::env::temp_dir().join(format!("sbae-daemon-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&directory).unwrap();
         let socket = directory.join("sock");
+        let resolve_socket = directory.join("resolve.sock");
 
         let mut store = Store::open(&directory.join("store.db")).unwrap();
         let keyfile = KeyfileSeal::generate_hex().unwrap();
@@ -65,6 +68,8 @@ impl Harness {
 
         let state = Arc::new(DaemonState::new(store, Box::new(backend), master, 1).unwrap());
         let listener_path = socket.clone();
+        let resolve_listener_path = resolve_socket.clone();
+        let http_state = state.clone();
 
         std::thread::spawn(move || {
             tokio::runtime::Builder::new_current_thread()
@@ -73,14 +78,37 @@ impl Harness {
                 .unwrap()
                 .block_on(async move {
                     let listener = tokio::net::UnixListener::bind(&listener_path).unwrap();
-                    let router = sbae_daemon::routes::router(state)
+                    let router = sbae_daemon::routes::router(http_state)
                         .into_make_service_with_connect_info::<PeerInfo>();
                     axum::serve(listener, router).await.unwrap();
                 });
         });
 
+        std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async move {
+                    let listener =
+                        std::os::unix::net::UnixListener::bind(&resolve_listener_path).unwrap();
+                    listener.set_nonblocking(true).unwrap();
+                    sbae_daemon::resolve_socket::serve(listener, state)
+                        .await
+                        .unwrap();
+                });
+        });
+
         wait_for(&socket);
-        (Self { socket, directory }, issued)
+        wait_for(&resolve_socket);
+        (
+            Self {
+                socket,
+                resolve_socket,
+                directory,
+            },
+            issued,
+        )
     }
 
     fn store_path(&self) -> PathBuf {
@@ -118,6 +146,83 @@ impl Harness {
             .to_owned();
         (status, payload)
     }
+
+    /// Speaks the plain resolve-socket protocol directly off a raw stream, exactly like a
+    /// caller in another language would, so these tests depend on no client library either.
+    ///
+    /// `Ok` carries `(version, plaintext)` per requested path, in request order, for a fully
+    /// successful batch; `Err` carries the single message a denied or malformed batch gets.
+    fn resolve_raw(
+        &self,
+        token: &str,
+        paths: &[(&str, Option<u32>)],
+    ) -> Result<Vec<(u32, Vec<u8>)>, String> {
+        let mut stream = UnixStream::connect(&self.resolve_socket).unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+
+        let mut request = format!(
+            "{} {} {token} {}\n",
+            api::RESOLVE_SOCKET_VERB,
+            api::RESOLVE_SOCKET_VERSION,
+            paths.len()
+        );
+        for (path, version) in paths {
+            match version {
+                Some(pinned) => writeln!(request, "{path}@{pinned}").unwrap(),
+                None => writeln!(request, "{path}").unwrap(),
+            }
+        }
+        resolve_raw_request(&mut stream, &request, paths.len())
+    }
+
+    /// Lets a test send a hand-crafted (possibly malformed) request line directly.
+    fn resolve_raw_line(&self, line: &str, expected: usize) -> Result<Vec<(u32, Vec<u8>)>, String> {
+        let mut stream = UnixStream::connect(&self.resolve_socket).unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        resolve_raw_request(&mut stream, line, expected)
+    }
+}
+
+/// Reads the response for a request already written to `stream`. A request for zero paths
+/// still attempts one read: a denied empty batch sends a single `ERROR` line before closing,
+/// while a successful one closes immediately with nothing -- the two must stay distinguishable.
+fn resolve_raw_request(
+    stream: &mut UnixStream,
+    request: &str,
+    expected: usize,
+) -> Result<Vec<(u32, Vec<u8>)>, String> {
+    stream.write_all(request.as_bytes()).unwrap();
+
+    let mut reader = std::io::BufReader::new(stream);
+    let mut results = Vec::new();
+    loop {
+        let mut line = String::new();
+        let read = std::io::BufRead::read_line(&mut reader, &mut line).unwrap();
+        if read == 0 {
+            break;
+        }
+        let line = line.trim_end_matches('\n');
+        if let Some(reason) = line.strip_prefix("ERROR ") {
+            return Err(reason.to_owned());
+        }
+        let rest = line
+            .strip_prefix("VALUE ")
+            .unwrap_or_else(|| panic!("unexpected response line: {line}"));
+        let mut fields = rest.splitn(2, ' ');
+        let version: u32 = fields.next().unwrap().parse().unwrap();
+        let length: usize = fields.next().unwrap().parse().unwrap();
+        let mut value = vec![0u8; length];
+        std::io::Read::read_exact(&mut reader, &mut value).unwrap();
+        results.push((version, value));
+        if results.len() == expected {
+            break;
+        }
+    }
+    Ok(results)
 }
 
 fn wait_for(socket: &Path) {
@@ -292,6 +397,109 @@ fn resolve_returns_every_requested_path_in_one_request() {
         r#"{"paths":["prod/billing/db","prod/billing/absent"]}"#,
     );
     assert_eq!(status, 403, "one unreadable path must fail the whole batch");
+}
+
+/// A request naming no paths at all must still be gated -- an earlier version of the handler
+/// only checked the token inside the per-path loop, so an empty batch skipped it entirely.
+#[test]
+fn resolve_with_an_empty_batch_still_requires_a_token() {
+    let (harness, _) = Harness::start(None);
+
+    let (status, _) = harness.post(api::route::RESOLVE, None, r#"{"paths":[]}"#);
+    assert_eq!(status, 403, "an empty batch must not bypass authorization");
+}
+
+#[test]
+fn resolve_socket_returns_every_requested_path_in_one_request() {
+    let (harness, issued) = Harness::start(None);
+    let token = issued.secret.expose();
+
+    write_secret(&harness, token, "prod/billing/db", "db-value");
+    write_secret(&harness, token, "prod/billing/stripe", "stripe-value");
+
+    let resolved = harness
+        .resolve_raw(
+            token,
+            &[("prod/billing/db", None), ("prod/billing/stripe", None)],
+        )
+        .expect("a fully readable batch must succeed");
+    assert_eq!(resolved.len(), 2);
+    assert_eq!(resolved[0], (1, b"db-value".to_vec()));
+    assert_eq!(resolved[1], (1, b"stripe-value".to_vec()));
+
+    let denied = harness.resolve_raw(
+        token,
+        &[("prod/billing/db", None), ("prod/billing/absent", None)],
+    );
+    assert!(
+        denied.is_err(),
+        "one unreadable path must fail the whole batch, matching the HTTP route"
+    );
+}
+
+#[test]
+fn resolve_socket_pins_a_specific_version() {
+    let (harness, issued) = Harness::start(None);
+    let token = issued.secret.expose();
+
+    write_secret(&harness, token, "prod/db", "first");
+    write_secret(&harness, token, "prod/db", "second");
+
+    let pinned = harness.resolve_raw(token, &[("prod/db", Some(1))]).unwrap();
+    assert_eq!(pinned[0], (1, b"first".to_vec()));
+
+    let current = harness.resolve_raw(token, &[("prod/db", None)]).unwrap();
+    assert_eq!(current[0], (2, b"second".to_vec()));
+}
+
+/// The headline hardening property, proven over the resolve socket exactly as it already is
+/// over the HTTP one.
+#[test]
+fn resolve_socket_refuses_a_token_bound_to_another_uid() {
+    let impossible_uid = 4_294_967_294;
+    let (harness, issued) = Harness::start(Some(impossible_uid));
+    write_secret(&harness, issued.secret.expose(), "prod/db", "value");
+
+    let denied = harness.resolve_raw(issued.secret.expose(), &[("prod/db", None)]);
+    assert!(
+        denied.is_err(),
+        "the connecting process does not have the bound uid"
+    );
+}
+
+/// Mirrors `resolve_with_an_empty_batch_still_requires_a_token` for the socket transport: both
+/// call the same shared core, so both must close the same hole.
+#[test]
+fn resolve_socket_requires_a_token_even_for_an_empty_batch() {
+    let (harness, _) = Harness::start(None);
+    let denied = harness.resolve_raw("not-a-real-token", &[]);
+    assert!(
+        denied.is_err(),
+        "an empty batch must not bypass authorization"
+    );
+}
+
+/// A hand-rolled parser is the one part of this listener the HTTP framework doesn't protect for
+/// free: garbage input, and a path count far past the cap, must both be refused promptly rather
+/// than read indefinitely or panic the connection's task.
+#[test]
+fn resolve_socket_rejects_malformed_input_without_hanging() {
+    let (harness, _) = Harness::start(None);
+
+    let garbage = harness.resolve_raw_line("this is not the protocol\n", 1);
+    assert!(garbage.is_err());
+
+    let oversized = harness.resolve_raw_line("RESOLVE 1 sometoken 999999999\n", 1);
+    assert!(
+        oversized.is_err(),
+        "a path count over the cap must be refused before reading any path line"
+    );
+
+    let bad_version = harness.resolve_raw_line("RESOLVE 2 sometoken 0\n", 1);
+    assert!(
+        bad_version.is_err(),
+        "an unsupported protocol version must be refused"
+    );
 }
 
 #[test]

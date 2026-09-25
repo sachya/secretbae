@@ -18,6 +18,7 @@ pub mod config;
 pub mod keyfile;
 pub mod maintenance;
 pub mod privdrop;
+pub mod resolve_socket;
 pub mod routes;
 pub mod server;
 pub mod startup;

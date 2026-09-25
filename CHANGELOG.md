@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project intends to follow
 [Semantic Versioning](https://semver.org/) once it reaches 1.0.
 
+## [Unreleased]
+
+### Added
+
+- A second, minimal, plain-text protocol on its own socket (`resolve_socket` in
+  `config.toml`, `/run/secretbae/resolve.sock` by default) for reading secrets from a
+  long-running application's own code, without an HTTP client or a JSON parser and without
+  restarting to see a rotated value the way `secretbae exec` requires. Gated by the identical
+  token, `SO_PEERCRED` and policy checks as the HTTP API, scoped to the same read-only
+  capability as `/v1/resolve` — it grants nothing new. See `docs/API.md`, added in this
+  release alongside it, for the wire format and example Python and PHP clients.
+
+### Fixed
+
+- `POST /v1/resolve` authorized each path inside its own loop, so a request naming no paths at
+  all (`{"paths": []}`) skipped authorization entirely and returned a successful, unaudited
+  empty response to any caller able to reach the socket, token or not. Both `/v1/resolve` and
+  the new resolve socket now authorize once, unconditionally, before looking at any path.
+- `packaging/systemd/secretbaed.service`'s `CapabilityBoundingSet` verification
+  (`packaging/tests/capability-matrix.sh`) had never actually run its daemon and CLI binaries:
+  it defaulted to `/target/release/...`, an absolute path that only resolves on a filesystem
+  rooted at `/`. Changed to paths relative to the repository root, which is the working
+  directory both in CI and for a developer running the script by hand.
+
 ## [0.2.0] — 2026-09-22
 
 First public release.

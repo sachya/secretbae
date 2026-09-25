@@ -10,11 +10,17 @@ use std::os::unix::net::UnixListener;
 
 use crate::{keyfile, privdrop, server, Config, DaemonError, DaemonState, Result, SharedState};
 
+/// The sockets bound while still root, handed to the two listeners once privilege is dropped.
+pub struct Listeners {
+    pub api: UnixListener,
+    pub resolve: UnixListener,
+}
+
 /// Everything that requires root, done once and never again.
 ///
-/// Returns the bound listener and the unsealed state, with the process already running as the
+/// Returns the bound listeners and the unsealed state, with the process already running as the
 /// unprivileged service account.
-pub fn run(config: &Config) -> Result<(UnixListener, SharedState)> {
+pub fn run(config: &Config) -> Result<(Listeners, SharedState)> {
     if privdrop::current_uid() != 0 {
         return Err(DaemonError::NotRoot);
     }
@@ -33,7 +39,10 @@ pub fn run(config: &Config) -> Result<(UnixListener, SharedState)> {
         .ok_or(DaemonError::NotInitialised)?;
     let master = seal::unseal_master(&backend, &sealed)?;
 
-    let listener = server::bind(&config.socket, config.socket_mode, account)?;
+    let listeners = Listeners {
+        api: server::bind(&config.socket, config.socket_mode, account)?,
+        resolve: server::bind(&config.resolve_socket, config.socket_mode, account)?,
+    };
 
     // Everything above needed privilege. Nothing below does.
     privdrop::drop_privileges(account)?;
@@ -41,7 +50,7 @@ pub fn run(config: &Config) -> Result<(UnixListener, SharedState)> {
     let state = DaemonState::new(store, Box::new(backend), master, sealed.generation)?;
     record_unseal(&state)?;
 
-    Ok((listener, Arc::new(state)))
+    Ok((listeners, Arc::new(state)))
 }
 
 /// Minimum `RLIMIT_MEMLOCK` the serving path needs.

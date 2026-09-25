@@ -11,13 +11,15 @@ use axum::{Json, Router};
 use data_encoding::BASE64;
 use sbae_audit::{Action, AuditResult};
 use sbae_core::SealedVersion;
-use sbae_policy::{issue, PeerCredentials};
+use sbae_policy::{issue, PeerCredentials, PresentedToken};
 use sbae_proto::api::{self, route};
 use sbae_proto::SecretPath;
 use sbae_store::{DeleteMode, ListFilter, NewToken, VersionSelector, WriteMeta};
 use time::{Duration, OffsetDateTime};
 
-use crate::auth::{authorize, record, Authenticated, Denied, Requested, DENIED_MESSAGE};
+use crate::auth::{
+    authorize, extract_token, record, Authenticated, Denied, Requested, DENIED_MESSAGE,
+};
 use crate::server::PeerInfo;
 use crate::SharedState;
 
@@ -79,6 +81,149 @@ impl IntoResponse for ApiError {
 
 pub(crate) type ApiResult<T> = core::result::Result<Json<T>, ApiError>;
 
+/// One secret to fetch: current version, or a specific one pinned by the caller.
+pub(crate) struct ResolveTarget {
+    pub path: SecretPath,
+    pub version: Option<sbae_proto::Version>,
+}
+
+/// A resolved secret with its plaintext still in the zeroizing wrapper it was decrypted into,
+/// so each transport can encode it however it needs (base64 for JSON, raw bytes on the wire)
+/// without an extra unzeroized copy in between.
+pub(crate) struct ResolvedSecret {
+    pub path: SecretPath,
+    pub version: sbae_proto::Version,
+    pub plaintext: sbae_core::SecretBytes,
+}
+
+/// Every way [`resolve_secrets`] can fail, kept distinct from [`ApiError`] so each transport
+/// maps denial-shaped failures and internal ones the same way `ApiError`'s own `From` impls
+/// already do, rather than collapsing through `DaemonError` and losing that distinction.
+pub(crate) enum ResolveFailure {
+    Denied(Denied),
+    Store(sbae_store::StoreError),
+    Crypto,
+    Audit(crate::DaemonError),
+}
+
+impl From<Denied> for ResolveFailure {
+    fn from(source: Denied) -> Self {
+        Self::Denied(source)
+    }
+}
+
+impl From<sbae_store::StoreError> for ResolveFailure {
+    fn from(source: sbae_store::StoreError) -> Self {
+        Self::Store(source)
+    }
+}
+
+impl From<sbae_core::Error> for ResolveFailure {
+    fn from(_: sbae_core::Error) -> Self {
+        Self::Crypto
+    }
+}
+
+impl From<crate::DaemonError> for ResolveFailure {
+    fn from(source: crate::DaemonError) -> Self {
+        Self::Audit(source)
+    }
+}
+
+impl From<ResolveFailure> for ApiError {
+    fn from(source: ResolveFailure) -> Self {
+        match source {
+            ResolveFailure::Denied(denied) => denied.into(),
+            ResolveFailure::Store(source) => source.into(),
+            ResolveFailure::Crypto => Self::internal(),
+            ResolveFailure::Audit(source) => source.into(),
+        }
+    }
+}
+
+impl ResolveFailure {
+    /// The message a non-HTTP transport can send verbatim, kept in step with [`ApiError`]'s own
+    /// denied-vs-internal split above rather than duplicating it.
+    #[must_use]
+    pub(crate) fn message(&self) -> &'static str {
+        match self {
+            Self::Denied(_) => DENIED_MESSAGE,
+            Self::Store(source) if source.is_client_error() => DENIED_MESSAGE,
+            Self::Store(_) | Self::Crypto | Self::Audit(_) => "internal error",
+        }
+    }
+}
+
+/// Shared by the HTTP `/v1/resolve` route and the plain resolve socket.
+///
+/// All-or-nothing: a path the caller may not read fails the whole batch rather than returning a
+/// short result the caller then fails on later (see the HTTP handler below). Gates once,
+/// unconditionally, before looking at any path -- an empty batch must still require and audit a
+/// valid token exactly like a non-empty one, which an earlier version of the HTTP handler did
+/// not do (a request with no paths skipped its own gate entirely).
+pub(crate) fn resolve_secrets<F>(
+    state: &SharedState,
+    peer: PeerCredentials,
+    targets: &[ResolveTarget],
+    mut present: F,
+) -> core::result::Result<Vec<ResolvedSecret>, ResolveFailure>
+where
+    F: FnMut() -> core::result::Result<PresentedToken, Denied>,
+{
+    let caller = authorize(
+        state,
+        present(),
+        peer,
+        &Requested {
+            route: route::RESOLVE,
+            path: None,
+        },
+    )?;
+
+    let mut resolved = Vec::with_capacity(targets.len());
+    for target in targets {
+        // Re-authorized per path: the token is unchanged, but `require_tags` grants are
+        // evaluated against each path's own tags, exactly like every other path-scoped route.
+        authorize(
+            state,
+            present(),
+            peer,
+            &Requested {
+                route: route::RESOLVE,
+                path: Some(&target.path),
+            },
+        )?;
+
+        let selector = target
+            .version
+            .map_or(VersionSelector::Current, VersionSelector::Exact);
+
+        let keys = state.keys();
+        let store = state.store();
+        let stored = store.read_version(&target.path, selector)?;
+        let plaintext = stored.sealed.open(&keys.master, stored.binding)?;
+        drop(store);
+
+        resolved.push(ResolvedSecret {
+            path: target.path.clone(),
+            version: stored.info.version,
+            plaintext,
+        });
+    }
+
+    // One audit entry for the whole batch: this is a service start, not N unrelated reads.
+    record(
+        state,
+        &caller,
+        Action::Resolve,
+        AuditResult::Success,
+        None,
+        None,
+    )?;
+
+    Ok(resolved)
+}
+
 pub fn router(state: SharedState) -> Router {
     Router::new()
         .route(route::STATUS, post(status))
@@ -112,7 +257,12 @@ pub(crate) fn gate(
     route: &str,
     path: Option<&SecretPath>,
 ) -> core::result::Result<Authenticated, ApiError> {
-    Ok(authorize(state, headers, peer, &Requested { route, path })?)
+    Ok(authorize(
+        state,
+        extract_token(headers),
+        peer,
+        &Requested { route, path },
+    )?)
 }
 
 pub(crate) fn rfc3339(at: OffsetDateTime) -> String {
@@ -456,45 +606,29 @@ async fn resolve(
     headers: HeaderMap,
     Json(request): Json<api::ResolveRequest>,
 ) -> ApiResult<api::ResolveResponse> {
-    let mut resolved = Vec::with_capacity(request.paths.len());
-    let mut caller = None;
+    let targets: Vec<ResolveTarget> = request
+        .paths
+        .into_iter()
+        .map(|path| ResolveTarget {
+            path,
+            version: None,
+        })
+        .collect();
 
-    for path in &request.paths {
-        let authenticated = gate(
-            &state,
-            &headers,
-            peer.credentials(),
-            route::RESOLVE,
-            Some(path),
-        )?;
+    let resolved = resolve_secrets(&state, peer.credentials(), &targets, || {
+        extract_token(&headers)
+    })?;
 
-        let keys = state.keys();
-        let store = state.store();
-        let stored = store.read_version(path, VersionSelector::Current)?;
-        let plaintext = stored.sealed.open(&keys.master, stored.binding)?;
-        drop(store);
-
-        resolved.push(api::ResolvedSecret {
-            path: path.clone(),
-            version: stored.info.version,
-            value: BASE64.encode(plaintext.expose()),
-        });
-        caller = Some(authenticated);
-    }
-
-    // One audit entry for the whole batch: this is a service start, not N unrelated reads.
-    if let Some(caller) = caller {
-        record(
-            &state,
-            &caller,
-            Action::Resolve,
-            AuditResult::Success,
-            None,
-            None,
-        )?;
-    }
-
-    Ok(Json(api::ResolveResponse { secrets: resolved }))
+    Ok(Json(api::ResolveResponse {
+        secrets: resolved
+            .into_iter()
+            .map(|item| api::ResolvedSecret {
+                path: item.path,
+                version: item.version,
+                value: BASE64.encode(item.plaintext.expose()),
+            })
+            .collect(),
+    }))
 }
 
 async fn token_create(

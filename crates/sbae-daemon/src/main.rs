@@ -104,14 +104,27 @@ mod unix {
 
         // The privileged sequence is deliberately synchronous and runs before any runtime
         // exists, so no task can observe the process while it still holds root.
-        let (listener, state) = startup::run(&config)?;
+        let (listeners, state) = startup::run(&config)?;
 
-        tracing::info!(socket = %config.socket.display(), user = %config.user, "serving");
+        tracing::info!(
+            socket = %config.socket.display(),
+            resolve_socket = %config.resolve_socket.display(),
+            user = %config.user,
+            "serving"
+        );
 
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()?
-            .block_on(sbae_daemon::server::serve(listener, state))
+            .block_on(async {
+                // Either listener failing is fatal to the daemon, matching today's
+                // single-listener behaviour; `try_join!` drops the other future the instant
+                // one errors, so its graceful shutdown does not get to run in that case.
+                let api = sbae_daemon::server::serve(listeners.api, state.clone());
+                let resolve = sbae_daemon::resolve_socket::serve(listeners.resolve, state);
+                tokio::try_join!(api, resolve)?;
+                Ok(())
+            })
     }
 }
 

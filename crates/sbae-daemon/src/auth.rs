@@ -33,6 +33,10 @@ pub enum Denied {
     Authentication(AuthFailure),
     NoGrant,
     UnknownRoute,
+    /// A transport-level framing rule was broken (bad verb, oversized input, ...) before a
+    /// token was even read. Kept here, rather than as a separate error path, so every way a
+    /// connection can be turned away is audited the same way.
+    ProtocolViolation(&'static str),
 }
 
 impl Denied {
@@ -49,6 +53,7 @@ impl Denied {
             }
             Self::NoGrant => "no policy grants this capability on this path",
             Self::UnknownRoute => "unknown route",
+            Self::ProtocolViolation(detail) => detail,
         }
     }
 }
@@ -74,13 +79,18 @@ pub struct Requested<'a> {
 }
 
 /// Run all three gates, writing an audit entry either way.
+///
+/// `presented` is the already-attempted result of pulling a token out of the request, rather
+/// than the request itself: HTTP extracts one from a header, the plain resolve socket parses
+/// one out of its own framing, and this function does not need to know which. Its failure
+/// still flows through the same audit-on-every-outcome path as any other denial.
 pub fn authorize(
     state: &SharedState,
-    headers: &http::HeaderMap,
+    presented: core::result::Result<PresentedToken, Denied>,
     peer: PeerCredentials,
     requested: &Requested<'_>,
 ) -> core::result::Result<Authenticated, Denied> {
-    let outcome = check(state, headers, peer, requested);
+    let outcome = check(state, presented, peer, requested);
 
     match &outcome {
         Ok(authenticated) => {
@@ -95,12 +105,12 @@ pub fn authorize(
 
 fn check(
     state: &SharedState,
-    headers: &http::HeaderMap,
+    presented: core::result::Result<PresentedToken, Denied>,
     peer: PeerCredentials,
     requested: &Requested<'_>,
 ) -> core::result::Result<Authenticated, Denied> {
     let capability = api::required_capability(requested.route).ok_or(Denied::UnknownRoute)?;
-    let presented = extract_token(headers)?;
+    let presented = presented?;
 
     let store = state.store();
     let record = store

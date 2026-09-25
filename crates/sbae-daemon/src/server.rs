@@ -39,7 +39,7 @@ impl Connected<IncomingStream<'_, UnixListener>> for PeerInfo {
 
 /// A connection whose credentials cannot be read is given values that match no real caller,
 /// so it fails any uid-bound token rather than being treated as trusted.
-fn peer_credentials(stream: &UnixStream) -> PeerCredentials {
+pub(crate) fn peer_credentials(stream: &UnixStream) -> PeerCredentials {
     stream.peer_cred().map_or(
         PeerCredentials {
             uid: u32::MAX,
@@ -106,8 +106,10 @@ pub async fn serve(listener: StdUnixListener, state: SharedState) -> Result<()> 
     Ok(())
 }
 
-/// Stop accepting on SIGTERM so systemd restarts and reloads are clean.
-async fn shutdown_signal() {
+/// Stop accepting on SIGTERM so systemd restarts and reloads are clean. Shared by every
+/// listener this daemon runs -- tokio's signal driver supports multiple independent waiters,
+/// so each caller gets its own notification rather than racing for one.
+pub(crate) async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
 
     let Ok(mut terminate) = signal(SignalKind::terminate()) else {

@@ -18,6 +18,24 @@ pub const BEARER_PREFIX: &str = "Bearer ";
 /// Default socket path. Overridable in the daemon's configuration.
 pub const DEFAULT_SOCKET_PATH: &str = "/run/secretbae/sock";
 
+/// Default path for the plain-text resolve socket. Overridable in the daemon's configuration.
+pub const DEFAULT_RESOLVE_SOCKET_PATH: &str = "/run/secretbae/resolve.sock";
+
+/// The one verb the resolve socket understands.
+pub const RESOLVE_SOCKET_VERB: &str = "RESOLVE";
+
+/// Bumped if the framing ever needs to change; a client and daemon that disagree fail closed
+/// with the same "not found or not permitted" message as any other denial.
+pub const RESOLVE_SOCKET_VERSION: u32 = 1;
+
+/// A request line, or a single path line, longer than this is refused before it is read in
+/// full. Bounds how much a single connection can make the daemon buffer.
+pub const RESOLVE_SOCKET_MAX_LINE_BYTES: usize = 4096;
+
+/// A batch larger than this is refused outright. `secretbae exec` profiles are a handful of
+/// entries; this is generous headroom without being unbounded.
+pub const RESOLVE_SOCKET_MAX_PATHS: usize = 256;
+
 /// The bootstrap policy `init` binds to a uid-0 token: every capability, including admin.
 pub const BUILTIN_ROOT_POLICY: &str = "root";
 
