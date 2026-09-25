@@ -15,8 +15,8 @@
 # process, the bounding set is what limits the capabilities granted on execve.
 set -eu
 
-DAEMON="${DAEMON:-/target/release/secretbaed}"
-CLI="${CLI:-/target/release/secretbae}"
+DAEMON="${DAEMON:-target/release/secretbaed}"
+CLI="${CLI:-target/release/secretbae}"
 
 # Kept in sync with CapabilityBoundingSet in packaging/systemd/secretbaed.service.
 REQUIRED="cap_setuid cap_setgid cap_chown cap_dac_override cap_fowner"

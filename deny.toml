@@ -8,16 +8,13 @@ targets = [
 
 [advisories]
 version = 2
-# Deny known security advisories/vulnerabilities
-vulnerability = "deny"
+# Vulnerabilities are always denied; this section only tunes the informational categories.
 unmaintained = "workspace"
 yanked = "warn"
-notice = "warn"
 
 [licenses]
 version = 2
-# Deny dependencies without a recognized license
-unlicensed = "deny"
+# A dependency whose license isn't in `allow` below is always denied.
 allow = [
     "MIT",
     "Apache-2.0",

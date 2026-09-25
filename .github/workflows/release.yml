@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deb:
+    name: Build and publish .deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Rust Dependency Cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Build the .deb
+        run: sh packaging/build-deb.sh
+
+      - name: Create release and upload asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          notes_file="$(mktemp)"
+          start=$(grep -n "^## \[$version\]" CHANGELOG.md | head -1 | cut -d: -f1)
+          if [ -n "$start" ]; then
+            end=$(tail -n "+$((start + 1))" CHANGELOG.md | grep -n "^## \[" | head -1 | cut -d: -f1)
+            if [ -n "$end" ]; then
+              sed -n "$((start + 1)),$((start + end - 1))p" CHANGELOG.md > "$notes_file"
+            else
+              tail -n "+$((start + 1))" CHANGELOG.md > "$notes_file"
+            fi
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.deb --clobber
+          else
+            gh release create "$TAG" dist/*.deb --title "$TAG" --notes-file "$notes_file"
+          fi

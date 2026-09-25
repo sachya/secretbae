@@ -152,6 +152,8 @@ zero daemon calls.
 
 **Debian, Ubuntu:**
 
+Download the `.deb` from [Releases](https://github.com/sachya/secretbae/releases/latest), then:
+
 ```bash
 sudo dpkg -i secretbae_0.2.0-1_amd64.deb
 sudo secretbaed init                    # creates the keyfile, prints the root token ONCE
